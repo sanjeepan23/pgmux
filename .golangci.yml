@@ -1,0 +1,25 @@
+version: "2"
+linters:
+  enable:
+    - bodyclose
+    - errorlint
+    - gocritic
+    - misspell
+    - nilerr
+    - unconvert
+  settings:
+    errcheck:
+      exclude-functions:
+        - (net.Conn).Close
+        - (net.Listener).Close
+        - (*os.File).Close
+        - (*github.com/fsnotify/fsnotify.Watcher).Close
+        - (*github.com/jackc/pgx/v5.Conn).Close
+  exclusions:
+    rules:
+      - path: _test\.go
+        linters: [errcheck, gocritic]
+formatters:
+  enable:
+    - gofmt
+    - goimports
