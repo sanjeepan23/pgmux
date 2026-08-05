@@ -1,0 +1,15 @@
+/bin/
+/dist/
+deploy/certs/*.key
+deploy/certs/*.crt
+dashboard/node_modules/
+dashboard/dist/
+clients/node/node_modules/
+clients/python/.venv/
+clients/python/**/__pycache__/
+clients/java/target/
+bench/results/raw/
+*.test
+*.out
+.DS_Store
+
