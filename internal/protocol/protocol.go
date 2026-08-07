@@ -20,3 +20,16 @@ const (
 	CancelRequestCode = 80877102
 )
 
+const (
+	// MaxStartupLen is the same limit that the Postgres server uses.
+	MaxStartupLen = 10000
+	// MaxMessageLen is the largest message body that Postgres accepts (1 GB).
+	MaxMessageLen = 1 << 30
+)
+
+// Message is one typed wire message. Body excludes the type byte and the length field.
+type Message struct {
+	Type byte
+	Body []byte
+}
+
