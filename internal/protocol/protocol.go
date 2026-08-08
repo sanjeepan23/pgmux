@@ -33,3 +33,20 @@ type Message struct {
 	Body []byte
 }
 
+// Encode appends the complete wire form of m to dst.
+func (m Message) Encode(dst []byte) []byte {
+	dst = append(dst, m.Type)
+	dst = binary.BigEndian.AppendUint32(dst, uint32(len(m.Body)+4))
+	return append(dst, m.Body...)
+}
+
+// ErrMessageTooLong is returned when a peer announces a message larger than the limit.
+var ErrMessageTooLong = errors.New("protocol: message too long")
+
+// Reader reads messages from a buffered stream.
+type Reader struct {
+	r      *bufio.Reader
+	maxLen int
+	hdr    [5]byte
+}
+
