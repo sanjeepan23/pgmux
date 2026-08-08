@@ -50,3 +50,14 @@ type Reader struct {
 	hdr    [5]byte
 }
 
+// NewReader returns a Reader that rejects message bodies larger than maxLen bytes.
+func NewReader(r io.Reader, maxLen int) *Reader {
+	if maxLen <= 0 || maxLen > MaxMessageLen {
+		maxLen = MaxMessageLen
+	}
+	return &Reader{r: bufio.NewReaderSize(r, 16*1024), maxLen: maxLen}
+}
+
+// Buffered returns the number of bytes that can be read without a blocking read.
+func (r *Reader) Buffered() int { return r.r.Buffered() }
+
