@@ -108,3 +108,21 @@ func NewWriter(w io.Writer) *Writer {
 	return &Writer{w: bufio.NewWriterSize(w, 16*1024)}
 }
 
+// WriteRaw writes a raw message.
+func (w *Writer) WriteRaw(m Message) error {
+	w.buf = m.Encode(w.buf[:0])
+	_, err := w.w.Write(w.buf)
+	return err
+}
+
+// Write encodes and writes a pgproto3 message.
+func (w *Writer) Write(msg pgproto3.Message) error {
+	var err error
+	w.buf, err = msg.Encode(w.buf[:0])
+	if err != nil {
+		return err
+	}
+	_, err = w.w.Write(w.buf)
+	return err
+}
+
