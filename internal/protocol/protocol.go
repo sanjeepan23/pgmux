@@ -144,3 +144,22 @@ func Encode(msg pgproto3.Message) (Message, error) {
 	return Message{Type: b[0], Body: b[5:]}, nil
 }
 
+// MustEncode is Encode for messages that cannot fail to encode.
+func MustEncode(msg pgproto3.Message) Message {
+	m, err := Encode(msg)
+	if err != nil {
+		panic(err)
+	}
+	return m
+}
+
+// ErrorMessage builds an ErrorResponse with the given severity, SQLSTATE code and text.
+func ErrorMessage(severity, code, text string) Message {
+	return MustEncode(&pgproto3.ErrorResponse{
+		Severity:            severity,
+		SeverityUnlocalized: severity,
+		Code:                code,
+		Message:             text,
+	})
+}
+
