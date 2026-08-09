@@ -126,3 +126,21 @@ func (w *Writer) Write(msg pgproto3.Message) error {
 	return err
 }
 
+// WriteBytes writes already encoded bytes.
+func (w *Writer) WriteBytes(b []byte) error {
+	_, err := w.w.Write(b)
+	return err
+}
+
+// Flush writes all buffered data to the stream.
+func (w *Writer) Flush() error { return w.w.Flush() }
+
+// Encode returns the wire form of msg as a Message.
+func Encode(msg pgproto3.Message) (Message, error) {
+	b, err := msg.Encode(nil)
+	if err != nil {
+		return Message{}, err
+	}
+	return Message{Type: b[0], Body: b[5:]}, nil
+}
+
