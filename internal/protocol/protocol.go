@@ -97,3 +97,14 @@ func (r *Reader) ReadStartup() ([]byte, error) {
 	return body, nil
 }
 
+// Writer buffers outgoing messages until Flush.
+type Writer struct {
+	w   *bufio.Writer
+	buf []byte
+}
+
+// NewWriter returns a Writer on w.
+func NewWriter(w io.Writer) *Writer {
+	return &Writer{w: bufio.NewWriterSize(w, 16*1024)}
+}
+
