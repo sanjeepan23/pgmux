@@ -61,3 +61,22 @@ func NewReader(r io.Reader, maxLen int) *Reader {
 // Buffered returns the number of bytes that can be read without a blocking read.
 func (r *Reader) Buffered() int { return r.r.Buffered() }
 
+// ReadMessage reads one typed message. The returned body is a new slice that the caller owns.
+func (r *Reader) ReadMessage() (Message, error) {
+	if _, err := io.ReadFull(r.r, r.hdr[:]); err != nil {
+		return Message{}, err
+	}
+	n := int(binary.BigEndian.Uint32(r.hdr[1:])) - 4
+	if n < 0 {
+		return Message{}, fmt.Errorf("protocol: invalid message length %d", n+4)
+	}
+	if n > r.maxLen {
+		return Message{}, ErrMessageTooLong
+	}
+	body := make([]byte, n)
+	if _, err := io.ReadFull(r.r, body); err != nil {
+		return Message{}, err
+	}
+	return Message{Type: r.hdr[0], Body: body}, nil
+}
+
