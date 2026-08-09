@@ -80,3 +80,20 @@ func (r *Reader) ReadMessage() (Message, error) {
 	return Message{Type: r.hdr[0], Body: body}, nil
 }
 
+// ReadStartup reads an untyped startup packet. The returned body starts with the 4-byte request code.
+func (r *Reader) ReadStartup() ([]byte, error) {
+	var lenBuf [4]byte
+	if _, err := io.ReadFull(r.r, lenBuf[:]); err != nil {
+		return nil, err
+	}
+	n := int(binary.BigEndian.Uint32(lenBuf[:])) - 4
+	if n < 4 || n > MaxStartupLen {
+		return nil, fmt.Errorf("protocol: invalid startup packet length %d", n+4)
+	}
+	body := make([]byte, n)
+	if _, err := io.ReadFull(r.r, body); err != nil {
+		return nil, err
+	}
+	return body, nil
+}
+
