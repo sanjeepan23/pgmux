@@ -163,3 +163,17 @@ func ErrorMessage(severity, code, text string) Message {
 	})
 }
 
+// ReadyForQuery builds a ReadyForQuery message with the given transaction status.
+func ReadyForQuery(status byte) Message {
+	return Message{Type: 'Z', Body: []byte{status}}
+}
+
+// DecodeError decodes an ErrorResponse body into an error value.
+func DecodeError(body []byte) error {
+	var e pgproto3.ErrorResponse
+	if err := e.Decode(body); err != nil {
+		return err
+	}
+	return &PgError{Severity: e.Severity, Code: e.Code, Message: e.Message}
+}
+
