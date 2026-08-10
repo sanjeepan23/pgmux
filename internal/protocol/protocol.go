@@ -177,3 +177,13 @@ func DecodeError(body []byte) error {
 	return &PgError{Severity: e.Severity, Code: e.Code, Message: e.Message}
 }
 
+// PgError is an error that a Postgres server returned.
+type PgError struct {
+	Severity string
+	Code     string
+	Message  string
+}
+
+func (e *PgError) Error() string {
+	return fmt.Sprintf("%s: %s (SQLSTATE %s)", e.Severity, e.Message, e.Code)
+}
