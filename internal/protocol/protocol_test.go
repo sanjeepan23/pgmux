@@ -65,3 +65,21 @@ func TestReadStartup(t *testing.T) {
 	}
 }
 
+func FuzzReadMessage(f *testing.F) {
+	f.Add(Message{Type: 'Q', Body: []byte("SELECT 1\x00")}.Encode(nil))
+	f.Add([]byte{'P', 0, 0, 0, 4})
+	f.Add([]byte{0, 0, 0, 8, 4, 210, 22, 47})
+	f.Fuzz(func(t *testing.T, data []byte) {
+		r := NewReader(bytes.NewReader(data), 1<<16)
+		for {
+			if _, err := r.ReadMessage(); err != nil {
+				break
+			}
+		}
+		r = NewReader(bytes.NewReader(data), 1<<16)
+		if body, err := r.ReadStartup(); err == nil {
+			var sm pgproto3.StartupMessage
+			_ = sm.Decode(body)
+		}
+	})
+}
