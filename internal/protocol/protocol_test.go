@@ -50,3 +50,18 @@ func TestReadMessageLimits(t *testing.T) {
 	}
 }
 
+func TestReadStartup(t *testing.T) {
+	b, _ := (&pgproto3.StartupMessage{ProtocolVersion: ProtocolVersion30, Parameters: map[string]string{"user": "u"}}).Encode(nil)
+	body, err := NewReader(bytes.NewReader(b), 0).ReadStartup()
+	if err != nil {
+		t.Fatal(err)
+	}
+	var sm pgproto3.StartupMessage
+	if err := sm.Decode(body); err != nil || sm.Parameters["user"] != "u" {
+		t.Fatalf("decode: %v %v", sm, err)
+	}
+	if _, err := NewReader(bytes.NewReader([]byte{0, 1, 0, 0}), 0).ReadStartup(); err == nil {
+		t.Fatal("oversized startup packet accepted")
+	}
+}
+
