@@ -39,3 +39,14 @@ func TestReadWriteRoundTrip(t *testing.T) {
 	}
 }
 
+func TestReadMessageLimits(t *testing.T) {
+	big := Message{Type: 'Q', Body: make([]byte, 100)}.Encode(nil)
+	if _, err := NewReader(bytes.NewReader(big), 50).ReadMessage(); !errors.Is(err, ErrMessageTooLong) {
+		t.Fatalf("err = %v, want ErrMessageTooLong", err)
+	}
+	// A length below 4 is invalid because the length counts itself.
+	if _, err := NewReader(bytes.NewReader([]byte{'Q', 0, 0, 0, 2}), 0).ReadMessage(); err == nil {
+		t.Fatal("invalid length accepted")
+	}
+}
+
