@@ -69,3 +69,15 @@ type ClientTLS struct {
 	Required bool   `yaml:"required"`
 }
 
+// Enabled reports if the pooler accepts TLS from clients.
+func (t ClientTLS) Enabled() bool { return t.CertFile != "" && t.KeyFile != "" }
+
+// Auth configures client authentication.
+type Auth struct {
+	Method     string `yaml:"method"`
+	Userlist   string `yaml:"userlist"`
+	AuthUser   string `yaml:"auth_user"`
+	AuthQuery  string `yaml:"auth_query"`
+	AuthDBName string `yaml:"auth_dbname"`
+}
+
