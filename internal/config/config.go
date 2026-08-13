@@ -30,3 +30,26 @@ func (d *Duration) UnmarshalYAML(n *yaml.Node) error {
 	return nil
 }
 
+// MarshalYAML writes the duration as a string.
+func (d Duration) MarshalYAML() (any, error) { return d.String(), nil }
+
+// Config is the complete pgmux configuration.
+type Config struct {
+	Listen          string              `yaml:"listen"`
+	AdminListen     string              `yaml:"admin_listen"`
+	AdminReadOnly   bool                `yaml:"admin_read_only"`
+	DashboardDir    string              `yaml:"dashboard_dir"`
+	PoolMode        string              `yaml:"pool_mode"`
+	ShutdownTimeout Duration            `yaml:"shutdown_timeout"`
+	MaxClientConn   int                 `yaml:"max_client_conn"`
+	Server          Server              `yaml:"server"`
+	ClientTLS       ClientTLS           `yaml:"client_tls"`
+	Auth            Auth                `yaml:"auth"`
+	Pool            Pool                `yaml:"pool"`
+	Databases       map[string]Database `yaml:"databases"`
+	Users           map[string]User     `yaml:"users"`
+
+	// path is the file the config came from. Relative paths in the config resolve against its folder.
+	path string
+}
+
