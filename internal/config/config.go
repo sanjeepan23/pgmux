@@ -53,3 +53,19 @@ type Config struct {
 	path string
 }
 
+// Server describes the Postgres server behind the pooler.
+type Server struct {
+	Host           string   `yaml:"host"`
+	Port           int      `yaml:"port"`
+	SSLMode        string   `yaml:"sslmode"`
+	SSLRootCert    string   `yaml:"sslrootcert"`
+	ConnectTimeout Duration `yaml:"connect_timeout"`
+}
+
+// ClientTLS configures TLS for client connections.
+type ClientTLS struct {
+	CertFile string `yaml:"cert_file"`
+	KeyFile  string `yaml:"key_file"`
+	Required bool   `yaml:"required"`
+}
+
