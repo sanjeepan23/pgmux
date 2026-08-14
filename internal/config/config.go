@@ -203,3 +203,16 @@ func (c *Config) Validate() error {
 	return errors.Join(errs...)
 }
 
+func validMode(m string) bool { return m == ModeSession || m == ModeTransaction }
+
+// Resolve returns p relative to the config file folder, unless p is absolute.
+func (c *Config) Resolve(p string) string {
+	if p == "" || filepath.IsAbs(p) || c.path == "" {
+		return p
+	}
+	return filepath.Join(filepath.Dir(c.path), p)
+}
+
+// Path returns the file the config came from.
+func (c *Config) Path() string { return c.path }
+
