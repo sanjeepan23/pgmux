@@ -216,3 +216,16 @@ func (c *Config) Resolve(p string) string {
 // Path returns the file the config came from.
 func (c *Config) Path() string { return c.path }
 
+// PoolSettings is the effective pool configuration for one database.
+type PoolSettings struct {
+	ServerDB         string
+	Mode             string
+	MaxSize          int
+	MinSize          int
+	IdleTimeout      time.Duration
+	MaxLifetime      time.Duration
+	QueryWaitTimeout time.Duration
+	HealthCheck      time.Duration
+	ResetQuery       string
+}
+
