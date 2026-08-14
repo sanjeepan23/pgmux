@@ -92,3 +92,16 @@ type Pool struct {
 	ResetQuery        string   `yaml:"reset_query"`
 }
 
+// Database overrides pool settings for one database name.
+type Database struct {
+	DBName   string `yaml:"dbname"`
+	PoolSize int    `yaml:"pool_size"`
+	MinSize  int    `yaml:"min_size"`
+	PoolMode string `yaml:"pool_mode"`
+}
+
+// User holds per-user limits.
+type User struct {
+	MaxConnections int `yaml:"max_connections"`
+}
+
