@@ -135,3 +135,17 @@ func Default() *Config {
 	}
 }
 
+// Load reads and validates the config file at path.
+func Load(path string) (*Config, error) {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return nil, err
+	}
+	cfg, err := Parse(data)
+	if err != nil {
+		return nil, fmt.Errorf("%s: %w", path, err)
+	}
+	cfg.path = path
+	return cfg, nil
+}
+
