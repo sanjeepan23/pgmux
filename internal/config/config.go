@@ -161,3 +161,45 @@ func Parse(data []byte) (*Config, error) {
 	return cfg, nil
 }
 
+// Validate checks the config for invalid values.
+func (c *Config) Validate() error {
+	var errs []error
+	if !validMode(c.PoolMode) {
+		errs = append(errs, fmt.Errorf("pool_mode must be %q or %q", ModeSession, ModeTransaction))
+	}
+	switch c.Server.SSLMode {
+	case "disable", "prefer", "require", "verify-ca", "verify-full":
+	default:
+		errs = append(errs, fmt.Errorf("server.sslmode %q is not valid", c.Server.SSLMode))
+	}
+	switch c.Auth.Method {
+	case "trust", "md5", "scram-sha-256":
+	default:
+		errs = append(errs, fmt.Errorf("auth.method %q is not valid", c.Auth.Method))
+	}
+	if c.Auth.Method != "trust" && c.Auth.Userlist == "" && c.Auth.AuthUser == "" {
+		errs = append(errs, errors.New("auth.userlist or auth.auth_user is required unless auth.method is trust"))
+	}
+	if (c.ClientTLS.CertFile == "") != (c.ClientTLS.KeyFile == "") {
+		errs = append(errs, errors.New("client_tls.cert_file and client_tls.key_file must be set together"))
+	}
+	if c.ClientTLS.Required && !c.ClientTLS.Enabled() {
+		errs = append(errs, errors.New("client_tls.required needs cert_file and key_file"))
+	}
+	if c.Pool.DefaultSize <= 0 {
+		errs = append(errs, errors.New("pool.default_size must be greater than 0"))
+	}
+	if c.Pool.MinSize < 0 || c.Pool.MinSize > c.Pool.DefaultSize {
+		errs = append(errs, errors.New("pool.min_size must be between 0 and pool.default_size"))
+	}
+	for name, db := range c.Databases {
+		if db.PoolMode != "" && !validMode(db.PoolMode) {
+			errs = append(errs, fmt.Errorf("databases.%s.pool_mode %q is not valid", name, db.PoolMode))
+		}
+		if db.PoolSize < 0 || db.MinSize < 0 {
+			errs = append(errs, fmt.Errorf("databases.%s: sizes must not be negative", name))
+		}
+	}
+	return errors.Join(errs...)
+}
+
