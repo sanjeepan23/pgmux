@@ -229,3 +229,32 @@ type PoolSettings struct {
 	ResetQuery       string
 }
 
+// PoolFor merges the defaults with the overrides for database db.
+func (c *Config) PoolFor(db string) PoolSettings {
+	s := PoolSettings{
+		ServerDB:         db,
+		Mode:             c.PoolMode,
+		MaxSize:          c.Pool.DefaultSize,
+		MinSize:          c.Pool.MinSize,
+		IdleTimeout:      c.Pool.IdleTimeout.Duration,
+		MaxLifetime:      c.Pool.MaxLifetime.Duration,
+		QueryWaitTimeout: c.Pool.QueryWaitTimeout.Duration,
+		HealthCheck:      c.Pool.HealthCheckPeriod.Duration,
+		ResetQuery:       c.Pool.ResetQuery,
+	}
+	if o, ok := c.Databases[db]; ok {
+		if o.DBName != "" {
+			s.ServerDB = o.DBName
+		}
+		if o.PoolSize > 0 {
+			s.MaxSize = o.PoolSize
+		}
+		if o.MinSize > 0 {
+			s.MinSize = min(o.MinSize, s.MaxSize)
+		}
+		if o.PoolMode != "" {
+			s.Mode = o.PoolMode
+		}
+	}
+	return s
+}
