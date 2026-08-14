@@ -105,3 +105,33 @@ type User struct {
 	MaxConnections int `yaml:"max_connections"`
 }
 
+// Default returns a config with all defaults set.
+func Default() *Config {
+	return &Config{
+		Listen:          "0.0.0.0:6432",
+		AdminListen:     "127.0.0.1:9930",
+		PoolMode:        ModeTransaction,
+		ShutdownTimeout: Duration{30 * time.Second},
+		MaxClientConn:   10000,
+		Server: Server{
+			Host:           "127.0.0.1",
+			Port:           5432,
+			SSLMode:        "disable",
+			ConnectTimeout: Duration{5 * time.Second},
+		},
+		Auth: Auth{
+			Method:     "scram-sha-256",
+			AuthQuery:  "SELECT usename, passwd FROM pg_shadow WHERE usename = $1",
+			AuthDBName: "postgres",
+		},
+		Pool: Pool{
+			DefaultSize:       20,
+			IdleTimeout:       Duration{10 * time.Minute},
+			MaxLifetime:       Duration{time.Hour},
+			QueryWaitTimeout:  Duration{30 * time.Second},
+			HealthCheckPeriod: Duration{30 * time.Second},
+			ResetQuery:        "DISCARD ALL",
+		},
+	}
+}
+
