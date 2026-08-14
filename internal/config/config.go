@@ -149,3 +149,15 @@ func Load(path string) (*Config, error) {
 	return cfg, nil
 }
 
+// Parse reads and validates config data.
+func Parse(data []byte) (*Config, error) {
+	cfg := Default()
+	if err := yaml.Unmarshal(data, cfg); err != nil {
+		return nil, err
+	}
+	if err := cfg.Validate(); err != nil {
+		return nil, err
+	}
+	return cfg, nil
+}
+
