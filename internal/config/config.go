@@ -81,3 +81,14 @@ type Auth struct {
 	AuthDBName string `yaml:"auth_dbname"`
 }
 
+// Pool holds the default pool settings.
+type Pool struct {
+	DefaultSize       int      `yaml:"default_size"`
+	MinSize           int      `yaml:"min_size"`
+	IdleTimeout       Duration `yaml:"idle_timeout"`
+	MaxLifetime       Duration `yaml:"max_lifetime"`
+	QueryWaitTimeout  Duration `yaml:"query_wait_timeout"`
+	HealthCheckPeriod Duration `yaml:"health_check_period"`
+	ResetQuery        string   `yaml:"reset_query"`
+}
+
