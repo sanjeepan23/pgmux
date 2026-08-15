@@ -1,0 +1,80 @@
+# pgmux example config. All values shown are the defaults unless the comment says otherwise.
+# Relative file paths resolve against the folder of this file.
+# pgmux reloads this file and the userlist when they change. A SIGHUP or POST /reload also reloads them.
+
+# Client listen address. A change needs a restart.
+listen: 0.0.0.0:6432
+# Admin HTTP API: /stats, /pools, /events, /metrics, /pause, /resume, /reload. Empty turns it off.
+admin_listen: 127.0.0.1:9930
+# Reject POST requests and turn off pprof on the admin API, for a public demo.
+admin_read_only: false
+# Serve the built dashboard (dashboard/dist) from the admin API. Empty turns it off.
+dashboard_dir: ""
+
+# session: a client keeps one server connection until it disconnects.
+# transaction: a client holds a server connection only during a transaction.
+pool_mode: transaction
+# On SIGTERM, idle clients close at once and clients in a transaction get this long to finish.
+shutdown_timeout: 30s
+# Maximum client connections for the whole pooler.
+max_client_conn: 10000
+
+server:
+  host: 127.0.0.1
+  port: 5432
+  # disable, prefer, require, verify-ca or verify-full.
+  sslmode: disable
+  # CA bundle for verify-ca and verify-full. Empty means the system CA pool.
+  sslrootcert: ""
+  connect_timeout: 5s
+
+client_tls:
+  # Set both to accept TLS from clients.
+  cert_file: ""
+  key_file: ""
+  # Reject clients that do not use TLS.
+  required: false
+
+auth:
+  # scram-sha-256, md5 or trust. With md5, users with a SCRAM secret still use SCRAM.
+  method: scram-sha-256
+  # PgBouncer-style file of "user" "password" lines. The password can be plaintext, an MD5 hash or a SCRAM secret.
+  # pgmux needs a plaintext password or an MD5 hash for a user, or it reuses the client's SCRAM proof.
+  userlist: userlist.txt
+  # For users that are not in the userlist, pgmux runs auth_query as auth_user to get the password hash.
+  # auth_user must be in the userlist. $1 is the user name.
+  auth_user: ""
+  auth_query: SELECT usename, passwd FROM pg_shadow WHERE usename = $1
+  auth_dbname: postgres
+
+pool:
+  # Server connections per (user, database) pool.
+  default_size: 20
+  # Server connections that pgmux keeps open when idle.
+  min_size: 0
+  # Close an idle server connection after this time, down to min_size.
+  idle_timeout: 10m
+  # Close a server connection after this age when it is next idle.
+  max_lifetime: 1h
+  # A client that waits longer than this for a server connection gets an error.
+  query_wait_timeout: 30s
+  # Before reuse, check a server connection that was idle longer than this.
+  health_check_period: 30s
+  # Runs when a session-mode client disconnects. Empty turns it off.
+  reset_query: DISCARD ALL
+
+# Per-database overrides. The key is the database name that clients connect to. (No defaults.)
+databases:
+  appdb:
+    pool_size: 50
+  reports:
+    # Connect to a different database name on the server.
+    dbname: appdb
+    pool_mode: session
+    pool_size: 5
+    min_size: 1
+
+# Per-user limits. (No defaults.)
+users:
+  app:
+    max_connections: 2000
