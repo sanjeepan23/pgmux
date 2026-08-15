@@ -61,3 +61,12 @@ func TestValidate(t *testing.T) {
 	}
 }
 
+func TestResolve(t *testing.T) {
+	cfg := &Config{path: "/etc/pgmux/pgmux.yaml"}
+	if got := cfg.Resolve("users.txt"); got != "/etc/pgmux/users.txt" {
+		t.Fatalf("Resolve = %q", got)
+	}
+	if got := cfg.Resolve("/abs/users.txt"); got != "/abs/users.txt" {
+		t.Fatalf("Resolve = %q", got)
+	}
+}
