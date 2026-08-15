@@ -39,3 +39,25 @@ databases:
 	}
 }
 
+func TestValidate(t *testing.T) {
+	cases := map[string]string{
+		"pool_mode: statement\nauth: {method: trust}":                 "pool_mode",
+		"server: {sslmode: maybe}\nauth: {method: trust}":             "sslmode",
+		"auth: {method: password}":                                    "auth.method",
+		"auth: {method: md5}":                                         "userlist",
+		"auth: {method: trust}\nclient_tls: {cert_file: a}":           "set together",
+		"auth: {method: trust}\npool: {default_size: 0}":              "default_size",
+		"auth: {method: trust}\ndatabases: {x: {pool_mode: y}}":       "databases.x",
+		"auth: {method: trust}\npool: {query_wait_timeout: soon}":     "time",
+		"auth: {method: trust}\nclient_tls: {required: true}":         "required",
+		"auth: {method: trust}\npool: {default_size: 5, min_size: 6}": "min_size",
+		"auth: {method: trust}\ndatabases: {x: {pool_size: -1}}":      "negative",
+	}
+	for data, want := range cases {
+		_, err := Parse([]byte(data))
+		if err == nil || !strings.Contains(err.Error(), want) {
+			t.Errorf("Parse(%q) err = %v, want it to mention %q", data, err, want)
+		}
+	}
+}
+
