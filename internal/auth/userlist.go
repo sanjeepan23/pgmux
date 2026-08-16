@@ -45,3 +45,23 @@ func ParseUserlist(r io.Reader) (map[string]*Credential, error) {
 	return out, sc.Err()
 }
 
+// quotedToken reads one double-quoted token. A doubled quote ("") inside the token is a literal quote.
+func quotedToken(s string) (tok, rest string, err error) {
+	if !strings.HasPrefix(s, `"`) {
+		return "", "", fmt.Errorf("expected quoted value")
+	}
+	var b strings.Builder
+	for i := 1; i < len(s); i++ {
+		if s[i] != '"' {
+			b.WriteByte(s[i])
+			continue
+		}
+		if i+1 < len(s) && s[i+1] == '"' {
+			b.WriteByte('"')
+			i++
+			continue
+		}
+		return b.String(), s[i+1:], nil
+	}
+	return "", "", fmt.Errorf("unterminated quoted value")
+}
