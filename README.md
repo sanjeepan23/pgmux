@@ -30,3 +30,17 @@ To run pgmux in Docker as well:
 docker compose -f deploy/docker-compose.yml --profile pgmux up -d --build
 ```
 
+## Install
+
+Download a binary for Linux or macOS from the
+[releases page](https://github.com/sanjeepan23/pgmux/releases). Each archive also has the
+dashboard in `dashboard/dist`. Set `dashboard_dir` to that path to serve it.
+
+Or use the Docker image for `linux/amd64` and `linux/arm64`:
+
+```sh
+docker run -p 6432:6432 -p 9930:9930 -v "$PWD/pgmux.yaml:/etc/pgmux/pgmux.yaml" ghcr.io/sanjeepan23/pgmux:latest
+```
+
+The image has the dashboard in `/usr/share/pgmux/dashboard`.
+
