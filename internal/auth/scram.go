@@ -61,3 +61,19 @@ func ParseScramSecret(s string) (*ScramSecret, error) {
 	return sec, nil
 }
 
+// String returns the secret in the Postgres storage format.
+func (s *ScramSecret) String() string {
+	b64 := base64.StdEncoding.EncodeToString
+	return fmt.Sprintf("%s$%d:%s$%s:%s", scramMechanism, s.Iterations, b64(s.Salt), b64(s.StoredKey), b64(s.ServerKey))
+}
+
+// NewScramSecret derives a secret from a plaintext password.
+func NewScramSecret(password string, salt []byte, iterations int) (*ScramSecret, error) {
+	clientKey, serverKey, err := scramKeys(password, salt, iterations)
+	if err != nil {
+		return nil, err
+	}
+	stored := sha256.Sum256(clientKey)
+	return &ScramSecret{Iterations: iterations, Salt: salt, StoredKey: stored[:], ServerKey: serverKey}, nil
+}
+
