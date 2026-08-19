@@ -91,3 +91,17 @@ func hmacSHA256(key []byte, msg string) []byte {
 	return h.Sum(nil)
 }
 
+func xorBytes(a, b []byte) []byte {
+	out := make([]byte, len(a))
+	for i := range a {
+		out[i] = a[i] ^ b[i]
+	}
+	return out
+}
+
+func newNonce() string {
+	b := make([]byte, 18)
+	_, _ = rand.Read(b)
+	return base64.RawStdEncoding.EncodeToString(b)
+}
+
