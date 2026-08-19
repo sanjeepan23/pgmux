@@ -77,3 +77,17 @@ func NewScramSecret(password string, salt []byte, iterations int) (*ScramSecret,
 	return &ScramSecret{Iterations: iterations, Salt: salt, StoredKey: stored[:], ServerKey: serverKey}, nil
 }
 
+func scramKeys(password string, salt []byte, iterations int) (clientKey, serverKey []byte, err error) {
+	salted, err := pbkdf2.Key(sha256.New, password, salt, iterations, sha256.Size)
+	if err != nil {
+		return nil, nil, err
+	}
+	return hmacSHA256(salted, "Client Key"), hmacSHA256(salted, "Server Key"), nil
+}
+
+func hmacSHA256(key []byte, msg string) []byte {
+	h := hmac.New(sha256.New, key)
+	h.Write([]byte(msg))
+	return h.Sum(nil)
+}
+
