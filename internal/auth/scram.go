@@ -105,3 +105,14 @@ func newNonce() string {
 	return base64.RawStdEncoding.EncodeToString(b)
 }
 
+// parseAttrs splits "k=v,k=v" into a map. Values can contain '='.
+func parseAttrs(s string) map[byte]string {
+	out := map[byte]string{}
+	for _, part := range strings.Split(s, ",") {
+		if len(part) >= 2 && part[1] == '=' {
+			out[part[0]] = part[2:]
+		}
+	}
+	return out
+}
+
