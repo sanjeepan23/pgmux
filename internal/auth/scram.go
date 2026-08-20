@@ -116,3 +116,39 @@ func parseAttrs(s string) map[byte]string {
 	return out
 }
 
+// scramServer runs the server side of one SCRAM-SHA-256 exchange.
+type scramServer struct {
+	secret          *ScramSecret
+	gs2Header       string
+	clientFirstBare string
+	serverFirst     string
+	nonce           string
+	authMessage     string
+}
+
+// firstMessage handles the client-first message and returns the server-first message.
+func (s *scramServer) firstMessage(clientFirst string) (string, error) {
+	switch {
+	case strings.HasPrefix(clientFirst, "p="):
+		return "", errors.New("SCRAM channel binding is not supported")
+	case strings.HasPrefix(clientFirst, "n,"), strings.HasPrefix(clientFirst, "y,"):
+	default:
+		return "", errors.New("malformed SCRAM client-first message")
+	}
+	// The GS2 header is "n," or "y," followed by an optional authzid and a comma.
+	idx := strings.Index(clientFirst[2:], ",")
+	if idx < 0 {
+		return "", errors.New("malformed SCRAM client-first message")
+	}
+	s.gs2Header = clientFirst[:2+idx+1]
+	s.clientFirstBare = clientFirst[len(s.gs2Header):]
+	attrs := parseAttrs(s.clientFirstBare)
+	cnonce := attrs['r']
+	if cnonce == "" {
+		return "", errors.New("SCRAM client nonce missing")
+	}
+	s.nonce = cnonce + newNonce()
+	s.serverFirst = fmt.Sprintf("r=%s,s=%s,i=%d", s.nonce, base64.StdEncoding.EncodeToString(s.secret.Salt), s.secret.Iterations)
+	return s.serverFirst, nil
+}
+
