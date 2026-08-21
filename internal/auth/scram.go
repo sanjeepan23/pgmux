@@ -205,3 +205,36 @@ func NewScramClientWithKeys(clientKey, serverKey []byte) *ScramClient {
 // Mechanism returns the SASL mechanism name.
 func (c *ScramClient) Mechanism() string { return scramMechanism }
 
+// First returns the client-first message.
+func (c *ScramClient) First() []byte {
+	c.clientFirstBare = "n=,r=" + c.cnonce
+	return []byte("n,," + c.clientFirstBare)
+}
+
+// Final handles the server-first message and returns the client-final message.
+func (c *ScramClient) Final(serverFirst []byte) ([]byte, error) {
+	attrs := parseAttrs(string(serverFirst))
+	nonce, saltB64, iterStr := attrs['r'], attrs['s'], attrs['i']
+	if !strings.HasPrefix(nonce, c.cnonce) || len(nonce) == len(c.cnonce) {
+		return nil, errors.New("auth: invalid SCRAM server nonce")
+	}
+	salt, err := base64.StdEncoding.DecodeString(saltB64)
+	if err != nil {
+		return nil, errors.New("auth: invalid SCRAM salt")
+	}
+	iter, err := strconv.Atoi(iterStr)
+	if err != nil || iter <= 0 {
+		return nil, errors.New("auth: invalid SCRAM iteration count")
+	}
+	if c.clientKey == nil {
+		if c.clientKey, c.serverKey, err = scramKeys(c.password, salt, iter); err != nil {
+			return nil, err
+		}
+	}
+	withoutProof := "c=biws,r=" + nonce
+	c.authMessage = c.clientFirstBare + "," + string(serverFirst) + "," + withoutProof
+	stored := sha256.Sum256(c.clientKey)
+	proof := xorBytes(c.clientKey, hmacSHA256(stored[:], c.authMessage))
+	return []byte(withoutProof + ",p=" + base64.StdEncoding.EncodeToString(proof)), nil
+}
+
