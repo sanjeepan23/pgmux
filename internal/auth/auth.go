@@ -23,3 +23,19 @@ const (
 	MethodSCRAM = "scram-sha-256"
 )
 
+// ErrAuthFailed means the client gave a wrong password.
+var ErrAuthFailed = errors.New("password authentication failed")
+
+// Credential is what the pooler knows about one user's password.
+// Any of the three fields can be empty, but at least one must be set.
+type Credential struct {
+	User     string
+	Password string
+	MD5      string // "md5" + hex(md5(password + user))
+	SCRAM    *ScramSecret
+
+	once      sync.Once
+	derived   *ScramSecret
+	deriveErr error
+}
+
