@@ -192,3 +192,16 @@ type ScramClient struct {
 	authMessage     string
 }
 
+// NewScramClient returns a client that uses a plaintext password.
+func NewScramClient(password string) *ScramClient {
+	return &ScramClient{password: password, cnonce: newNonce()}
+}
+
+// NewScramClientWithKeys returns a client that uses the given SCRAM keys in place of a password.
+func NewScramClientWithKeys(clientKey, serverKey []byte) *ScramClient {
+	return &ScramClient{clientKey: clientKey, serverKey: serverKey, cnonce: newNonce()}
+}
+
+// Mechanism returns the SASL mechanism name.
+func (c *ScramClient) Mechanism() string { return scramMechanism }
+
