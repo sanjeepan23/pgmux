@@ -181,3 +181,14 @@ func (s *scramServer) finalMessage(clientFinal string) (string, []byte, error) {
 	return "v=" + base64.StdEncoding.EncodeToString(serverSig), clientKey, nil
 }
 
+// ScramClient runs the client side of one SCRAM-SHA-256 exchange against a Postgres server.
+// It authenticates with a password, or with a ClientKey and ServerKey that a client proved earlier.
+type ScramClient struct {
+	password        string
+	clientKey       []byte
+	serverKey       []byte
+	cnonce          string
+	clientFirstBare string
+	authMessage     string
+}
+
