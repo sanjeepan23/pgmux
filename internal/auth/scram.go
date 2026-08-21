@@ -238,3 +238,18 @@ func (c *ScramClient) Final(serverFirst []byte) ([]byte, error) {
 	return []byte(withoutProof + ",p=" + base64.StdEncoding.EncodeToString(proof)), nil
 }
 
+// Verify checks the server-final message.
+func (c *ScramClient) Verify(serverFinal []byte) error {
+	attrs := parseAttrs(string(serverFinal))
+	if e, ok := attrs['e']; ok {
+		return fmt.Errorf("auth: SCRAM server error: %s", e)
+	}
+	sig, err := base64.StdEncoding.DecodeString(attrs['v'])
+	if err != nil {
+		return errors.New("auth: invalid SCRAM server signature")
+	}
+	if !hmac.Equal(sig, hmacSHA256(c.serverKey, c.authMessage)) {
+		return errors.New("auth: SCRAM server signature mismatch")
+	}
+	return nil
+}
