@@ -152,3 +152,32 @@ func (s *scramServer) firstMessage(clientFirst string) (string, error) {
 	return s.serverFirst, nil
 }
 
+// finalMessage verifies the client proof. It returns the server-final message and the recovered ClientKey.
+func (s *scramServer) finalMessage(clientFinal string) (string, []byte, error) {
+	idx := strings.LastIndex(clientFinal, ",p=")
+	if idx < 0 {
+		return "", nil, errors.New("SCRAM client proof missing")
+	}
+	withoutProof := clientFinal[:idx]
+	attrs := parseAttrs(withoutProof)
+	if attrs['c'] != base64.StdEncoding.EncodeToString([]byte(s.gs2Header)) {
+		return "", nil, errors.New("SCRAM channel binding mismatch")
+	}
+	if attrs['r'] != s.nonce {
+		return "", nil, errors.New("SCRAM nonce mismatch")
+	}
+	proof, err := base64.StdEncoding.DecodeString(clientFinal[idx+3:])
+	if err != nil || len(proof) != sha256.Size {
+		return "", nil, errors.New("malformed SCRAM client proof")
+	}
+	s.authMessage = s.clientFirstBare + "," + s.serverFirst + "," + withoutProof
+	clientSig := hmacSHA256(s.secret.StoredKey, s.authMessage)
+	clientKey := xorBytes(proof, clientSig)
+	stored := sha256.Sum256(clientKey)
+	if subtle.ConstantTimeCompare(stored[:], s.secret.StoredKey) != 1 {
+		return "", nil, ErrAuthFailed
+	}
+	serverSig := hmacSHA256(s.secret.ServerKey, s.authMessage)
+	return "v=" + base64.StdEncoding.EncodeToString(serverSig), clientKey, nil
+}
+
