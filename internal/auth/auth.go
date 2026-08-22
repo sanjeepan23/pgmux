@@ -113,3 +113,27 @@ func AuthenticateClient(rd *protocol.Reader, wr *protocol.Writer, method string,
 	return nil, fmt.Errorf("auth: unknown method %q", method)
 }
 
+func authMD5(rd *protocol.Reader, wr *protocol.Writer, cred *Credential) error {
+	var salt [4]byte
+	_, _ = rand.Read(salt[:])
+	if err := wr.Write(&pgproto3.AuthenticationMD5Password{Salt: salt}); err != nil {
+		return err
+	}
+	if err := wr.Flush(); err != nil {
+		return err
+	}
+	body, err := readPassword(rd)
+	if err != nil {
+		return err
+	}
+	var pm pgproto3.PasswordMessage
+	if err := pm.Decode(body); err != nil {
+		return err
+	}
+	want := MD5Response(cred.MD5, salt[:])
+	if cred.User == "" || subtle.ConstantTimeCompare([]byte(pm.Password), []byte(want)) != 1 {
+		return ErrAuthFailed
+	}
+	return nil
+}
+
