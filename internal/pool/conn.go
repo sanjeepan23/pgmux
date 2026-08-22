@@ -49,3 +49,27 @@ type Conn struct {
 	broken    atomic.Bool
 }
 
+func newConn(nc net.Conn, rd *protocol.Reader, params map[string]string, pid uint32, secret []byte) *Conn {
+	now := time.Now()
+	c := &Conn{
+		ID:        connIDs.Add(1),
+		PID:       pid,
+		Secret:    secret,
+		netConn:   nc,
+		w:         protocol.NewWriter(nc),
+		msgs:      make(chan protocol.Message, 128),
+		closed:    make(chan struct{}),
+		params:    map[string]string{},
+		names:     map[string]string{},
+		Prepared:  map[string]struct{}{},
+		createdAt: now,
+		lastUsed:  now,
+	}
+	for k, v := range params {
+		c.SetParam(k, v)
+	}
+	c.initialParams = copyMap(c.params)
+	go c.readLoop(rd)
+	return c
+}
+
