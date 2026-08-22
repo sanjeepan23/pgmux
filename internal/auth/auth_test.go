@@ -114,3 +114,27 @@ func TestScramClientRejectsBadServer(t *testing.T) {
 	}
 }
 
+func TestParseUserlist(t *testing.T) {
+	data := `; comment
+"alice" "secret"
+# another comment
+"bob" "md57541d4e65fae11bd07f18dc6fe2b02bc"
+"quo""te" "pa""ss"
+`
+	creds, err := ParseUserlist(strings.NewReader(data))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(creds) != 3 || creds["alice"].Password != "secret" || creds["bob"].MD5 == "" {
+		t.Fatalf("unexpected result: %+v", creds)
+	}
+	if creds[`quo"te`].Password != `pa"ss` {
+		t.Fatal("escaped quotes not handled")
+	}
+	for _, bad := range []string{`alice secret`, `"alice" secret`, `"alice`} {
+		if _, err := ParseUserlist(bytes.NewBufferString(bad)); err == nil {
+			t.Errorf("ParseUserlist(%q) accepted", bad)
+		}
+	}
+}
+
