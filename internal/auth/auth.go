@@ -87,3 +87,29 @@ func (c *Credential) scramSecret() (*ScramSecret, error) {
 	return c.derived, c.deriveErr
 }
 
+// ClientKeys holds the SCRAM keys that a client proved during authentication.
+// The pooler reuses them to log in to Postgres when it has no plaintext password.
+type ClientKeys struct {
+	ClientKey []byte
+	ServerKey []byte
+}
+
+// AuthenticateClient runs the server side of client authentication.
+// It does not send AuthenticationOk. It returns the client's SCRAM keys when the SCRAM method ran.
+func AuthenticateClient(rd *protocol.Reader, wr *protocol.Writer, method string, cred *Credential) (*ClientKeys, error) {
+	if method == MethodTrust {
+		return nil, nil
+	}
+	if cred == nil {
+		// Run the exchange with a dummy secret so that a probe cannot tell if the user exists.
+		cred = &Credential{Password: "-"}
+	}
+	if method == MethodMD5 && cred.MD5 != "" {
+		return nil, authMD5(rd, wr, cred)
+	}
+	if method == MethodMD5 || method == MethodSCRAM {
+		return authSCRAM(rd, wr, cred)
+	}
+	return nil, fmt.Errorf("auth: unknown method %q", method)
+}
+
