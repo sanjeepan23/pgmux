@@ -73,3 +73,26 @@ func newConn(nc net.Conn, rd *protocol.Reader, params map[string]string, pid uin
 	return c
 }
 
+func (c *Conn) readLoop(rd *protocol.Reader) {
+	defer close(c.msgs)
+	for {
+		m, err := rd.ReadMessage()
+		if err != nil {
+			c.readErr = err
+			c.broken.Store(true)
+			return
+		}
+		if m.Type == 'S' {
+			var ps pgproto3.ParameterStatus
+			if ps.Decode(m.Body) == nil {
+				c.SetParam(ps.Name, ps.Value)
+			}
+		}
+		select {
+		case c.msgs <- m:
+		case <-c.closed:
+			return
+		}
+	}
+}
+
