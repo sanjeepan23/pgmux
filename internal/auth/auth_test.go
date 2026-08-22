@@ -24,3 +24,27 @@ func TestScramSecretMatchesPostgres(t *testing.T) {
 	}
 }
 
+func TestMD5HashMatchesPostgres(t *testing.T) {
+	if got := MD5Hash("md5user", "md5pass"); got != "md57541d4e65fae11bd07f18dc6fe2b02bc" {
+		t.Fatalf("MD5Hash = %s", got)
+	}
+}
+
+func TestParseCredential(t *testing.T) {
+	c, _ := ParseCredential("u", pgSecret)
+	if c.SCRAM == nil || c.Password != "" {
+		t.Fatal("SCRAM secret not detected")
+	}
+	c, _ = ParseCredential("md5user", "md57541d4e65fae11bd07f18dc6fe2b02bc")
+	if c.MD5 == "" || c.Password != "" {
+		t.Fatal("MD5 hash not detected")
+	}
+	c, _ = ParseCredential("u", "plain")
+	if c.Password != "plain" || c.MD5 != MD5Hash("u", "plain") {
+		t.Fatal("plaintext password not detected")
+	}
+	if _, err := ParseCredential("u", "SCRAM-SHA-256$bad"); err == nil {
+		t.Fatal("malformed SCRAM secret accepted")
+	}
+}
+
