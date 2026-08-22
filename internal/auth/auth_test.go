@@ -151,3 +151,10 @@ func FuzzScramServer(f *testing.F) {
 	})
 }
 
+func FuzzParseUserlist(f *testing.F) {
+	f.Add(`"a" "b"`)
+	f.Add(`"a""" "SCRAM-SHA-256$1:AA==$AA==:AA=="`)
+	f.Fuzz(func(t *testing.T, data string) {
+		_, _ = ParseUserlist(strings.NewReader(data))
+	})
+}
