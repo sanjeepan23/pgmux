@@ -48,3 +48,22 @@ func TestParseCredential(t *testing.T) {
 	}
 }
 
+// runExchange runs a SCRAM exchange between ScramClient and scramServer in memory.
+func runExchange(t *testing.T, client *ScramClient, secret *ScramSecret) ([]byte, error) {
+	t.Helper()
+	srv := &scramServer{secret: secret}
+	serverFirst, err := srv.firstMessage(string(client.First()))
+	if err != nil {
+		return nil, err
+	}
+	clientFinal, err := client.Final([]byte(serverFirst))
+	if err != nil {
+		return nil, err
+	}
+	serverFinal, clientKey, err := srv.finalMessage(string(clientFinal))
+	if err != nil {
+		return nil, err
+	}
+	return clientKey, client.Verify([]byte(serverFinal))
+}
+
