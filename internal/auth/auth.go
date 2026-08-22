@@ -190,3 +190,13 @@ func authSCRAM(rd *protocol.Reader, wr *protocol.Writer, cred *Credential) (*Cli
 	return &ClientKeys{ClientKey: clientKey, ServerKey: secret.ServerKey}, nil
 }
 
+func readPassword(rd *protocol.Reader) ([]byte, error) {
+	m, err := rd.ReadMessage()
+	if err != nil {
+		return nil, err
+	}
+	if m.Type != 'p' {
+		return nil, fmt.Errorf("auth: expected password message, got %q", m.Type)
+	}
+	return m.Body, nil
+}
