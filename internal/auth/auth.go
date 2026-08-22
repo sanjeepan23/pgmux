@@ -70,3 +70,20 @@ func MD5Response(md5Hash string, salt []byte) string {
 	return "md5" + hex.EncodeToString(sum[:])
 }
 
+// scramSecret returns the stored SCRAM secret, or derives one from the plaintext password.
+func (c *Credential) scramSecret() (*ScramSecret, error) {
+	if c.SCRAM != nil {
+		return c.SCRAM, nil
+	}
+	c.once.Do(func() {
+		if c.Password == "" {
+			c.deriveErr = errors.New("auth: no SCRAM secret or plaintext password for user")
+			return
+		}
+		salt := make([]byte, 16)
+		_, _ = rand.Read(salt)
+		c.derived, c.deriveErr = NewScramSecret(c.Password, salt, defaultIterations)
+	})
+	return c.derived, c.deriveErr
+}
+
