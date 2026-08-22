@@ -39,3 +39,22 @@ type Credential struct {
 	deriveErr error
 }
 
+// ParseCredential classifies a stored secret as plaintext, MD5 hash or SCRAM secret.
+func ParseCredential(user, secret string) (*Credential, error) {
+	c := &Credential{User: user}
+	switch {
+	case strings.HasPrefix(secret, scramMechanism+"$"):
+		s, err := ParseScramSecret(secret)
+		if err != nil {
+			return nil, err
+		}
+		c.SCRAM = s
+	case len(secret) == 35 && strings.HasPrefix(secret, "md5"):
+		c.MD5 = secret
+	default:
+		c.Password = secret
+		c.MD5 = MD5Hash(user, secret)
+	}
+	return c, nil
+}
+
