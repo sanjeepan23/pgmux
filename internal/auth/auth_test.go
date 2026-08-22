@@ -67,3 +67,18 @@ func runExchange(t *testing.T, client *ScramClient, secret *ScramSecret) ([]byte
 	return clientKey, client.Verify([]byte(serverFinal))
 }
 
+func TestScramExchange(t *testing.T) {
+	sec, _ := ParseScramSecret(pgSecret)
+	clientKey, err := runExchange(t, NewScramClient("app"), sec)
+	if err != nil {
+		t.Fatalf("good password: %v", err)
+	}
+	if _, err := runExchange(t, NewScramClient("wrong"), sec); !errors.Is(err, ErrAuthFailed) {
+		t.Fatalf("wrong password: err = %v", err)
+	}
+	// The recovered ClientKey must log in again without the password. auth_query depends on this.
+	if _, err := runExchange(t, NewScramClientWithKeys(clientKey, sec.ServerKey), sec); err != nil {
+		t.Fatalf("passthrough keys: %v", err)
+	}
+}
+
