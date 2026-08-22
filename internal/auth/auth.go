@@ -137,3 +137,56 @@ func authMD5(rd *protocol.Reader, wr *protocol.Writer, cred *Credential) error {
 	return nil
 }
 
+func authSCRAM(rd *protocol.Reader, wr *protocol.Writer, cred *Credential) (*ClientKeys, error) {
+	secret, err := cred.scramSecret()
+	if err != nil {
+		return nil, err
+	}
+	if err := wr.Write(&pgproto3.AuthenticationSASL{AuthMechanisms: []string{scramMechanism}}); err != nil {
+		return nil, err
+	}
+	if err := wr.Flush(); err != nil {
+		return nil, err
+	}
+	body, err := readPassword(rd)
+	if err != nil {
+		return nil, err
+	}
+	var initial pgproto3.SASLInitialResponse
+	if err := initial.Decode(body); err != nil {
+		return nil, err
+	}
+	if initial.AuthMechanism != scramMechanism {
+		return nil, fmt.Errorf("auth: unsupported SASL mechanism %q", initial.AuthMechanism)
+	}
+	srv := &scramServer{secret: secret}
+	serverFirst, err := srv.firstMessage(string(initial.Data))
+	if err != nil {
+		return nil, err
+	}
+	if err := wr.Write(&pgproto3.AuthenticationSASLContinue{Data: []byte(serverFirst)}); err != nil {
+		return nil, err
+	}
+	if err := wr.Flush(); err != nil {
+		return nil, err
+	}
+	if body, err = readPassword(rd); err != nil {
+		return nil, err
+	}
+	var resp pgproto3.SASLResponse
+	if err := resp.Decode(body); err != nil {
+		return nil, err
+	}
+	serverFinal, clientKey, err := srv.finalMessage(string(resp.Data))
+	if err != nil {
+		return nil, err
+	}
+	if cred.User == "" {
+		return nil, ErrAuthFailed
+	}
+	if err := wr.Write(&pgproto3.AuthenticationSASLFinal{Data: []byte(serverFinal)}); err != nil {
+		return nil, err
+	}
+	return &ClientKeys{ClientKey: clientKey, ServerKey: secret.ServerKey}, nil
+}
+
