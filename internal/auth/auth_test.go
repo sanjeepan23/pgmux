@@ -82,3 +82,22 @@ func TestScramExchange(t *testing.T) {
 	}
 }
 
+func TestScramServerRejectsBadMessages(t *testing.T) {
+	sec, _ := ParseScramSecret(pgSecret)
+	for _, first := range []string{"", "p=tls-server-end-point,,n=,r=abc", "n,,n=", "x,,n=,r=a"} {
+		srv := &scramServer{secret: sec}
+		if _, err := srv.firstMessage(first); err == nil {
+			t.Errorf("firstMessage(%q) accepted", first)
+		}
+	}
+	srv := &scramServer{secret: sec}
+	if _, err := srv.firstMessage("n,,n=,r=abc"); err != nil {
+		t.Fatal(err)
+	}
+	for _, final := range []string{"", "c=biws,r=abc", "c=eSws,r=" + srv.nonce + ",p=AAAA", "c=biws,r=other,p=AAAA"} {
+		if _, _, err := srv.finalMessage(final); err == nil {
+			t.Errorf("finalMessage(%q) accepted", final)
+		}
+	}
+}
+
