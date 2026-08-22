@@ -138,3 +138,16 @@ func TestParseUserlist(t *testing.T) {
 	}
 }
 
+func FuzzScramServer(f *testing.F) {
+	f.Add("n,,n=,r=abc", "c=biws,r=abc,p=AAAA")
+	f.Add("y,a=x,n=u,r=r", "c=eSxhPXgs,r=r,p=")
+	sec, _ := ParseScramSecret(pgSecret)
+	f.Fuzz(func(t *testing.T, first, final string) {
+		srv := &scramServer{secret: sec}
+		if _, err := srv.firstMessage(first); err != nil {
+			return
+		}
+		_, _, _ = srv.finalMessage(final)
+	})
+}
+
