@@ -101,3 +101,16 @@ func TestScramServerRejectsBadMessages(t *testing.T) {
 	}
 }
 
+func TestScramClientRejectsBadServer(t *testing.T) {
+	c := NewScramClient("x")
+	c.First()
+	if _, err := c.Final([]byte("r=othernonce,s=AAAA,i=4096")); err == nil {
+		t.Fatal("foreign nonce accepted")
+	}
+	c = NewScramClient("x")
+	c.First()
+	if _, err := c.Final([]byte("r=" + c.cnonce + "srv,s=AAAA,i=0")); err == nil {
+		t.Fatal("zero iterations accepted")
+	}
+}
+
