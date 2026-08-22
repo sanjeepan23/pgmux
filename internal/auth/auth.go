@@ -58,3 +58,15 @@ func ParseCredential(user, secret string) (*Credential, error) {
 	return c, nil
 }
 
+// MD5Hash returns the Postgres MD5 password hash for a user.
+func MD5Hash(user, password string) string {
+	sum := md5.Sum([]byte(password + user))
+	return "md5" + hex.EncodeToString(sum[:])
+}
+
+// MD5Response returns the response to an MD5 challenge, given a stored "md5..." hash.
+func MD5Response(md5Hash string, salt []byte) string {
+	sum := md5.Sum(append([]byte(strings.TrimPrefix(md5Hash, "md5")), salt...))
+	return "md5" + hex.EncodeToString(sum[:])
+}
+
