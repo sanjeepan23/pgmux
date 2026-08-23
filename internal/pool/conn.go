@@ -96,3 +96,14 @@ func (c *Conn) readLoop(rd *protocol.Reader) {
 	}
 }
 
+// Msgs returns the channel of server messages. The channel closes when the connection fails.
+func (c *Conn) Msgs() <-chan protocol.Message { return c.msgs }
+
+// ReadErr returns the error that stopped the read loop, after Msgs is closed.
+func (c *Conn) ReadErr() error {
+	if c.readErr == nil {
+		return ErrConnClosed
+	}
+	return c.readErr
+}
+
