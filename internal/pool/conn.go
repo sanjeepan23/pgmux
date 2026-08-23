@@ -107,3 +107,21 @@ func (c *Conn) ReadErr() error {
 	return c.readErr
 }
 
+// WriteRaw buffers a raw message. Call Flush to send it.
+func (c *Conn) WriteRaw(m protocol.Message) error {
+	if err := c.w.WriteRaw(m); err != nil {
+		c.broken.Store(true)
+		return err
+	}
+	return nil
+}
+
+// Flush sends all buffered messages.
+func (c *Conn) Flush() error {
+	if err := c.w.Flush(); err != nil {
+		c.broken.Store(true)
+		return err
+	}
+	return nil
+}
+
