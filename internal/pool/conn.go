@@ -125,3 +125,25 @@ func (c *Conn) Flush() error {
 	return nil
 }
 
+// SetWriteDeadline sets the deadline for writes to the server.
+func (c *Conn) SetWriteDeadline(t time.Time) error { return c.netConn.SetWriteDeadline(t) }
+
+// MarkBroken stops the pool from reusing the connection.
+func (c *Conn) MarkBroken() { c.broken.Store(true) }
+
+// Broken reports if the connection must not be reused.
+func (c *Conn) Broken() bool { return c.broken.Load() }
+
+// Close closes the connection and stops the read loop.
+func (c *Conn) Close() {
+	c.once.Do(func() {
+		c.broken.Store(true)
+		close(c.closed)
+		// Send Terminate so that the server does not log an unexpected EOF.
+		_ = c.netConn.SetWriteDeadline(time.Now().Add(100 * time.Millisecond))
+		_ = c.w.WriteRaw(protocol.Message{Type: 'X'})
+		_ = c.w.Flush()
+		_ = c.netConn.Close()
+	})
+}
+
