@@ -147,3 +147,22 @@ func (c *Conn) Close() {
 	})
 }
 
+// Param returns the current value of a server parameter.
+func (c *Conn) Param(name string) (string, bool) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	v, ok := c.params[strings.ToLower(name)]
+	return v, ok
+}
+
+// SetParam records the current value of a server parameter.
+func (c *Conn) SetParam(name, value string) {
+	key := strings.ToLower(name)
+	c.mu.Lock()
+	c.params[key] = value
+	if _, ok := c.names[key]; !ok {
+		c.names[key] = name
+	}
+	c.mu.Unlock()
+}
+
