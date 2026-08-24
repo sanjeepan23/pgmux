@@ -177,3 +177,25 @@ func (c *Conn) Params() map[string]string {
 	return out
 }
 
+// ResetState records that a reset query returned the session to its startup state.
+func (c *Conn) ResetState() {
+	c.mu.Lock()
+	c.params = copyMap(c.initialParams)
+	c.mu.Unlock()
+	clear(c.Prepared)
+}
+
+// DrainAsync discards queued asynchronous messages. It returns false if the connection is gone.
+func (c *Conn) DrainAsync() bool {
+	for {
+		select {
+		case _, ok := <-c.msgs:
+			if !ok {
+				return false
+			}
+		default:
+			return !c.Broken()
+		}
+	}
+}
+
