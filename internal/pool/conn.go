@@ -166,3 +166,14 @@ func (c *Conn) SetParam(name, value string) {
 	c.mu.Unlock()
 }
 
+// Params returns a copy of the current server parameters, with the names that the server reported.
+func (c *Conn) Params() map[string]string {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	out := make(map[string]string, len(c.params))
+	for k, v := range c.params {
+		out[c.names[k]] = v
+	}
+	return out
+}
+
