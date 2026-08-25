@@ -199,3 +199,43 @@ func (c *Conn) DrainAsync() bool {
 	}
 }
 
+// Exec runs a simple query and waits for ReadyForQuery. It returns the first ErrorResponse as an error.
+// The caller must own the connection, and nothing else can be in flight on it.
+func (c *Conn) Exec(ctx context.Context, sql string) error {
+	if dl, ok := ctx.Deadline(); ok {
+		_ = c.netConn.SetWriteDeadline(dl)
+		defer func() { _ = c.netConn.SetWriteDeadline(time.Time{}) }()
+	}
+	if err := c.w.Write(&pgproto3.Query{String: sql}); err != nil {
+		c.broken.Store(true)
+		return err
+	}
+	if err := c.Flush(); err != nil {
+		return err
+	}
+	var qerr error
+	for {
+		select {
+		case <-ctx.Done():
+			c.broken.Store(true)
+			return ctx.Err()
+		case m, ok := <-c.msgs:
+			if !ok {
+				return c.ReadErr()
+			}
+			switch m.Type {
+			case 'E':
+				if qerr == nil {
+					qerr = protocol.DecodeError(m.Body)
+				}
+			case 'Z':
+				if len(m.Body) == 1 && m.Body[0] != 'I' {
+					c.broken.Store(true)
+					return fmt.Errorf("server left in transaction state %q", m.Body[0])
+				}
+				return qerr
+			}
+		}
+	}
+}
+
