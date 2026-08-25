@@ -239,3 +239,10 @@ func (c *Conn) Exec(ctx context.Context, sql string) error {
 	}
 }
 
+func copyMap(m map[string]string) map[string]string {
+	out := make(map[string]string, len(m))
+	for k, v := range m {
+		out[k] = v
+	}
+	return out
+}
