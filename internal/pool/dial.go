@@ -194,3 +194,54 @@ func startup(nc net.Conn, login Login) (*Conn, error) {
 	}
 }
 
+func handleAuth(wr *protocol.Writer, body []byte, login Login, scram *auth.ScramClient) (*auth.ScramClient, error) {
+	if len(body) < 4 {
+		return nil, errors.New("short authentication message")
+	}
+	var out pgproto3.FrontendMessage
+	switch kind := binary.BigEndian.Uint32(body); kind {
+	case 0: // AuthenticationOk
+		return scram, nil
+	case 3: // AuthenticationCleartextPassword
+		if login.Password == "" {
+			return nil, errors.New("server wants a cleartext password, but pgmux has none for this user")
+		}
+		out = &pgproto3.PasswordMessage{Password: login.Password}
+	case 5: // AuthenticationMD5Password
+		if login.MD5 == "" {
+			return nil, errors.New("server wants an MD5 password, but pgmux has no password or MD5 hash for this user")
+		}
+		out = &pgproto3.PasswordMessage{Password: auth.MD5Response(login.MD5, body[4:8])}
+	case 10: // AuthenticationSASL
+		switch {
+		case login.Password != "":
+			scram = auth.NewScramClient(login.Password)
+		case login.Keys != nil:
+			scram = auth.NewScramClientWithKeys(login.Keys.ClientKey, login.Keys.ServerKey)
+		default:
+			return nil, errors.New("server wants SCRAM, but pgmux has no password or client keys for this user yet")
+		}
+		out = &pgproto3.SASLInitialResponse{AuthMechanism: scram.Mechanism(), Data: scram.First()}
+	case 11: // AuthenticationSASLContinue
+		if scram == nil {
+			return nil, errors.New("unexpected SASL continue")
+		}
+		data, err := scram.Final(body[4:])
+		if err != nil {
+			return nil, err
+		}
+		out = &pgproto3.SASLResponse{Data: data}
+	case 12: // AuthenticationSASLFinal
+		if scram == nil {
+			return nil, errors.New("unexpected SASL final")
+		}
+		return scram, scram.Verify(body[4:])
+	default:
+		return nil, fmt.Errorf("unsupported server authentication method %d", kind)
+	}
+	if err := wr.Write(out); err != nil {
+		return nil, err
+	}
+	return scram, wr.Flush()
+}
+
