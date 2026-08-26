@@ -143,3 +143,54 @@ func (d *Dialer) Dial(ctx context.Context, login Login) (*Conn, error) {
 	return c, nil
 }
 
+func startup(nc net.Conn, login Login) (*Conn, error) {
+	rd := protocol.NewReader(nc, 0)
+	wr := protocol.NewWriter(nc)
+	err := wr.Write(&pgproto3.StartupMessage{
+		ProtocolVersion: protocol.ProtocolVersion30,
+		Parameters:      map[string]string{"user": login.User, "database": login.Database},
+	})
+	if err == nil {
+		err = wr.Flush()
+	}
+	if err != nil {
+		return nil, err
+	}
+	params := map[string]string{}
+	var pid uint32
+	var secret []byte
+	var scram *auth.ScramClient
+	for {
+		m, err := rd.ReadMessage()
+		if err != nil {
+			return nil, err
+		}
+		switch m.Type {
+		case 'R':
+			if scram, err = handleAuth(wr, m.Body, login, scram); err != nil {
+				return nil, err
+			}
+		case 'S':
+			var ps pgproto3.ParameterStatus
+			if err := ps.Decode(m.Body); err != nil {
+				return nil, err
+			}
+			params[ps.Name] = ps.Value
+		case 'K':
+			var kd pgproto3.BackendKeyData
+			if err := kd.Decode(m.Body); err != nil {
+				return nil, err
+			}
+			pid, secret = kd.ProcessID, kd.SecretKey
+		case 'E':
+			return nil, protocol.DecodeError(m.Body)
+		case 'Z':
+			return newConn(nc, rd, params, pid, secret), nil
+		case 'N', 'v':
+			// Notices and NegotiateProtocolVersion need no action.
+		default:
+			return nil, fmt.Errorf("unexpected message %q during server startup", m.Type)
+		}
+	}
+}
+
