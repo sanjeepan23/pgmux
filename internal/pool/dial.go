@@ -120,3 +120,26 @@ func (d *Dialer) dialTransport(ctx context.Context) (net.Conn, error) {
 	return tc, nil
 }
 
+// Dial opens and authenticates a new server connection.
+func (d *Dialer) Dial(ctx context.Context, login Login) (*Conn, error) {
+	if d.ConnectTimeout > 0 {
+		var cancel context.CancelFunc
+		ctx, cancel = context.WithTimeout(ctx, d.ConnectTimeout)
+		defer cancel()
+	}
+	nc, err := d.dialTransport(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if dl, ok := ctx.Deadline(); ok {
+		_ = nc.SetDeadline(dl)
+	}
+	c, err := startup(nc, login)
+	if err != nil {
+		nc.Close()
+		return nil, err
+	}
+	_ = nc.SetDeadline(time.Time{})
+	return c, nil
+}
+
