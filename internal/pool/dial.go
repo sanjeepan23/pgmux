@@ -245,3 +245,23 @@ func handleAuth(wr *protocol.Writer, body []byte, login Login, scram *auth.Scram
 	return scram, wr.Flush()
 }
 
+// Cancel sends a cancel request for the backend with the given process ID and secret.
+func (d *Dialer) Cancel(ctx context.Context, pid uint32, secret []byte) error {
+	nc, err := d.dialTransport(ctx)
+	if err != nil {
+		return err
+	}
+	defer nc.Close()
+	_ = nc.SetDeadline(time.Now().Add(5 * time.Second))
+	b, err := (&pgproto3.CancelRequest{ProcessID: pid, SecretKey: secret}).Encode(nil)
+	if err != nil {
+		return err
+	}
+	if _, err := nc.Write(b); err != nil {
+		return err
+	}
+	// The server closes the connection after it handles the request.
+	var buf [1]byte
+	_, _ = nc.Read(buf[:])
+	return nil
+}
