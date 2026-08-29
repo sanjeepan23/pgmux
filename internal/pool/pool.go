@@ -48,3 +48,14 @@ type Pool struct {
 	clients atomic.Int64
 }
 
+func newPool(key Key, settings config.PoolSettings, login Login, dialer func() *Dialer) *Pool {
+	return &Pool{Key: key, settings: settings, login: login, dialer: dialer}
+}
+
+// Settings returns the current pool settings.
+func (p *Pool) Settings() config.PoolSettings {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	return p.settings
+}
+
