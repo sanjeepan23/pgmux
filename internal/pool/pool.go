@@ -59,3 +59,21 @@ func (p *Pool) Settings() config.PoolSettings {
 	return p.settings
 }
 
+// Mode returns the pool mode.
+func (p *Pool) Mode() string { return p.Settings().Mode }
+
+// ClientConnected and ClientDisconnected count the clients that use the pool.
+func (p *Pool) ClientConnected()    { p.clients.Add(1) }
+func (p *Pool) ClientDisconnected() { p.clients.Add(-1) }
+
+// UpdateLogin sets new credentials for future server connections.
+// SCRAM keys from a client are kept when the new login has no password.
+func (p *Pool) UpdateLogin(l Login) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	if l.Keys == nil && l.Password == "" {
+		l.Keys = p.login.Keys
+	}
+	p.login = l
+}
+
