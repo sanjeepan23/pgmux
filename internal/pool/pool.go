@@ -77,3 +77,16 @@ func (p *Pool) UpdateLogin(l Login) {
 	p.login = l
 }
 
+// SetClientKeys stores SCRAM keys that a client proved, if the pool has no other way to log in.
+func (p *Pool) SetClientKeys(clientKey, serverKey []byte) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	if p.login.Password == "" && p.login.Keys == nil {
+		p.login.Keys = &auth.ClientKeys{ClientKey: clientKey, ServerKey: serverKey}
+	}
+}
+
+func (p *Pool) canLogin() bool {
+	return p.dialedOK || p.login.Password != "" || p.login.MD5 != "" || p.login.Keys != nil
+}
+
