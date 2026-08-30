@@ -181,3 +181,23 @@ func (p *Pool) acquire(ctx context.Context) (*Conn, error) {
 	}
 }
 
+// check validates an idle connection before reuse. It destroys the connection and returns nil if it is bad.
+func (p *Pool) check(ctx context.Context, c *Conn) *Conn {
+	s := p.Settings()
+	if !c.DrainAsync() || (s.MaxLifetime > 0 && time.Since(c.createdAt) > s.MaxLifetime) {
+		p.Destroy(c)
+		return nil
+	}
+	if s.HealthCheck > 0 && time.Since(c.lastUsed) > s.HealthCheck {
+		hctx, cancel := context.WithTimeout(ctx, 2*time.Second)
+		defer cancel()
+		// An empty query is the cheapest round trip that the server answers.
+		if err := c.Exec(hctx, ";"); err != nil {
+			slog.Debug("server health check failed", "user", p.Key.User, "db", p.Key.Database, "err", err)
+			p.Destroy(c)
+			return nil
+		}
+	}
+	return c
+}
+
