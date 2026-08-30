@@ -90,3 +90,28 @@ func (p *Pool) canLogin() bool {
 	return p.dialedOK || p.login.Password != "" || p.login.MD5 != "" || p.login.Keys != nil
 }
 
+// ServerParams returns the startup parameters of the first server connection, or nil.
+func (p *Pool) ServerParams() map[string]string {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	if p.params == nil {
+		return nil
+	}
+	return copyMap(p.params)
+}
+
+// Acquire returns a server connection. It waits up to query_wait_timeout when the pool is full.
+func (p *Pool) Acquire(ctx context.Context) (*Conn, error) {
+	start := time.Now()
+	if t := p.Settings().QueryWaitTimeout; t > 0 {
+		var cancel context.CancelFunc
+		ctx, cancel = context.WithTimeout(ctx, t)
+		defer cancel()
+	}
+	c, err := p.acquire(ctx)
+	if err == nil {
+		metrics.AcquireWait.WithLabelValues(p.Key.User, p.Key.Database).Observe(time.Since(start).Seconds())
+	}
+	return c, err
+}
+
