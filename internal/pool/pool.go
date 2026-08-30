@@ -115,3 +115,69 @@ func (p *Pool) Acquire(ctx context.Context) (*Conn, error) {
 	return c, err
 }
 
+func (p *Pool) acquire(ctx context.Context) (*Conn, error) {
+	for {
+		p.mu.Lock()
+		if p.closed {
+			p.mu.Unlock()
+			return nil, ErrPoolClosed
+		}
+		// Skip the queue only when nobody is waiting, so that clients get connections in arrival order.
+		if !p.paused && p.waiters.Len() == 0 {
+			if n := len(p.idle); n > 0 {
+				c := p.idle[n-1]
+				p.idle = p.idle[:n-1]
+				p.inUse++
+				p.mu.Unlock()
+				if c = p.check(ctx, c); c != nil {
+					return c, nil
+				}
+				continue
+			}
+			if p.total < p.settings.MaxSize {
+				p.total++
+				p.inUse++
+				p.mu.Unlock()
+				return p.dialNew(ctx)
+			}
+		}
+		ch := make(chan *Conn, 1)
+		el := p.waiters.PushBack(ch)
+		p.mu.Unlock()
+
+		select {
+		case c := <-ch:
+			if c == nil {
+				// A nil connection is a permit to dial a new one. The dispatcher already counted it.
+				return p.dialNew(ctx)
+			}
+			if c = p.check(ctx, c); c != nil {
+				return c, nil
+			}
+		case <-ctx.Done():
+			p.mu.Lock()
+			select {
+			case c := <-ch:
+				// The dispatcher gave us a connection or a permit just before the timeout.
+				p.mu.Unlock()
+				if c == nil {
+					p.mu.Lock()
+					p.total--
+					p.inUse--
+					p.dispatchLocked()
+					p.mu.Unlock()
+				} else {
+					p.Release(c)
+				}
+			default:
+				p.waiters.Remove(el)
+				p.mu.Unlock()
+			}
+			if errors.Is(ctx.Err(), context.DeadlineExceeded) {
+				return nil, ErrWaitTimeout
+			}
+			return nil, ctx.Err()
+		}
+	}
+}
+
