@@ -201,3 +201,28 @@ func (p *Pool) check(ctx context.Context, c *Conn) *Conn {
 	return c
 }
 
+func (p *Pool) dialNew(ctx context.Context) (*Conn, error) {
+	p.mu.Lock()
+	login := p.login
+	login.Database = p.settings.ServerDB
+	p.mu.Unlock()
+	c, err := p.dialer().Dial(ctx, login)
+	if err != nil {
+		p.mu.Lock()
+		p.total--
+		p.inUse--
+		p.dispatchLocked()
+		p.mu.Unlock()
+		metrics.ErrorsTotal.WithLabelValues(metrics.ErrServerConnect).Inc()
+		return nil, err
+	}
+	metrics.ServerConnectionsTotal.Inc()
+	p.mu.Lock()
+	p.dialedOK = true
+	if p.params == nil {
+		p.params = c.Params()
+	}
+	p.mu.Unlock()
+	return c, nil
+}
+
