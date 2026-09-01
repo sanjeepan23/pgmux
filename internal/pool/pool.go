@@ -226,3 +226,21 @@ func (p *Pool) dialNew(ctx context.Context) (*Conn, error) {
 	return c, nil
 }
 
+// Release returns a connection to the pool. The caller must leave it idle, outside any transaction.
+func (p *Pool) Release(c *Conn) {
+	p.mu.Lock()
+	p.inUse--
+	s := p.settings
+	if c.Broken() || p.closed || p.total > s.MaxSize || (s.MaxLifetime > 0 && time.Since(c.createdAt) > s.MaxLifetime) {
+		p.total--
+		p.dispatchLocked()
+		p.mu.Unlock()
+		c.Close()
+		return
+	}
+	c.lastUsed = time.Now()
+	p.idle = append(p.idle, c)
+	p.dispatchLocked()
+	p.mu.Unlock()
+}
+
