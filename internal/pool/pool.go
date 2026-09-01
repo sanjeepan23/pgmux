@@ -244,3 +244,34 @@ func (p *Pool) Release(c *Conn) {
 	p.mu.Unlock()
 }
 
+// Destroy closes a connection that the caller holds.
+func (p *Pool) Destroy(c *Conn) {
+	p.mu.Lock()
+	p.inUse--
+	p.total--
+	p.dispatchLocked()
+	p.mu.Unlock()
+	c.Close()
+}
+
+// dispatchLocked gives idle connections or dial permits to waiting clients.
+func (p *Pool) dispatchLocked() {
+	if p.paused || p.closed {
+		return
+	}
+	for p.waiters.Len() > 0 {
+		var c *Conn
+		if n := len(p.idle); n > 0 {
+			c = p.idle[n-1]
+			p.idle = p.idle[:n-1]
+		} else if p.total < p.settings.MaxSize {
+			p.total++
+		} else {
+			return
+		}
+		p.inUse++
+		ch := p.waiters.Remove(p.waiters.Front()).(chan *Conn)
+		ch <- c
+	}
+}
+
