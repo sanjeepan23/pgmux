@@ -275,3 +275,20 @@ func (p *Pool) dispatchLocked() {
 	}
 }
 
+// Resize applies new settings. Extra connections close as clients release them.
+func (p *Pool) Resize(s config.PoolSettings) {
+	p.mu.Lock()
+	p.settings = s
+	var extra []*Conn
+	for p.total > s.MaxSize && len(p.idle) > 0 {
+		extra = append(extra, p.idle[0])
+		p.idle = p.idle[1:]
+		p.total--
+	}
+	p.dispatchLocked()
+	p.mu.Unlock()
+	for _, c := range extra {
+		c.Close()
+	}
+}
+
