@@ -374,3 +374,15 @@ func (p *Pool) maintain(ctx context.Context) {
 	}
 }
 
+func (p *Pool) close() {
+	p.mu.Lock()
+	p.closed = true
+	idle := p.idle
+	p.idle = nil
+	p.total -= len(idle)
+	p.mu.Unlock()
+	for _, c := range idle {
+		c.Close()
+	}
+}
+
