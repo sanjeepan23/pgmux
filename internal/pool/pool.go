@@ -314,3 +314,18 @@ func (p *Pool) Pause(ctx context.Context) error {
 	}
 }
 
+// Resume lets clients acquire connections again.
+func (p *Pool) Resume() {
+	p.mu.Lock()
+	p.paused = false
+	p.dispatchLocked()
+	p.mu.Unlock()
+}
+
+// Paused reports if the pool is paused.
+func (p *Pool) Paused() bool {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	return p.paused
+}
+
