@@ -386,3 +386,18 @@ func (p *Pool) close() {
 	}
 }
 
+// Stats is a snapshot of the pool state.
+type Stats struct {
+	User           string `json:"user"`
+	Database       string `json:"database"`
+	Mode           string `json:"mode"`
+	Paused         bool   `json:"paused"`
+	MaxSize        int    `json:"max_size"`
+	MinSize        int    `json:"min_size"`
+	Clients        int    `json:"clients"`
+	ClientsWaiting int    `json:"clients_waiting"`
+	ServersTotal   int    `json:"servers_total"`
+	ServersActive  int    `json:"servers_active"`
+	ServersIdle    int    `json:"servers_idle"`
+}
+
