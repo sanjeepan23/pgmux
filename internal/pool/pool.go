@@ -401,3 +401,21 @@ type Stats struct {
 	ServersIdle    int    `json:"servers_idle"`
 }
 
+// Stats returns a snapshot of the pool state.
+func (p *Pool) Stats() Stats {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	return Stats{
+		User:           p.Key.User,
+		Database:       p.Key.Database,
+		Mode:           p.settings.Mode,
+		Paused:         p.paused,
+		MaxSize:        p.settings.MaxSize,
+		MinSize:        p.settings.MinSize,
+		Clients:        int(p.clients.Load()),
+		ClientsWaiting: p.waiters.Len(),
+		ServersTotal:   p.total,
+		ServersActive:  p.inUse,
+		ServersIdle:    len(p.idle),
+	}
+}
