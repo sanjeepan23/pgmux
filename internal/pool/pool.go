@@ -329,3 +329,48 @@ func (p *Pool) Paused() bool {
 	return p.paused
 }
 
+// maintain closes idle connections past idle_timeout or max_lifetime, and opens connections up to min_size.
+func (p *Pool) maintain(ctx context.Context) {
+	now := time.Now()
+	p.mu.Lock()
+	s := p.settings
+	var expired []*Conn
+	kept := p.idle[:0]
+	for _, c := range p.idle {
+		idleTooLong := s.IdleTimeout > 0 && now.Sub(c.lastUsed) > s.IdleTimeout && p.total > s.MinSize
+		tooOld := s.MaxLifetime > 0 && now.Sub(c.createdAt) > s.MaxLifetime
+		if idleTooLong || tooOld || c.Broken() {
+			expired = append(expired, c)
+			p.total--
+			continue
+		}
+		kept = append(kept, c)
+	}
+	clear(p.idle[len(kept):])
+	p.idle = kept
+	need := 0
+	if !p.closed && p.canLogin() {
+		need = s.MinSize - p.total
+	}
+	for i := 0; i < need; i++ {
+		p.total++
+		p.inUse++
+	}
+	p.dispatchLocked()
+	p.mu.Unlock()
+
+	for _, c := range expired {
+		c.Close()
+	}
+	for i := 0; i < need; i++ {
+		go func() {
+			c, err := p.dialNew(ctx)
+			if err != nil {
+				slog.Warn("min_size connection failed", "user", p.Key.User, "db", p.Key.Database, "err", err)
+				return
+			}
+			p.Release(c)
+		}()
+	}
+}
+
