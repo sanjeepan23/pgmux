@@ -292,3 +292,25 @@ func (p *Pool) Resize(s config.PoolSettings) {
 	}
 }
 
+// Pause stops new acquires and waits until clients release all connections or ctx ends.
+func (p *Pool) Pause(ctx context.Context) error {
+	p.mu.Lock()
+	p.paused = true
+	p.mu.Unlock()
+	t := time.NewTicker(20 * time.Millisecond)
+	defer t.Stop()
+	for {
+		p.mu.Lock()
+		n := p.inUse
+		p.mu.Unlock()
+		if n == 0 {
+			return nil
+		}
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-t.C:
+		}
+	}
+}
+
