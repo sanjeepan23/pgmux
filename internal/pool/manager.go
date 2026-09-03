@@ -71,3 +71,19 @@ func (m *Manager) Reload(cfg *config.Config, d *Dialer) {
 	}
 }
 
+// Run does pool maintenance once a second until ctx ends.
+func (m *Manager) Run(ctx context.Context) {
+	t := time.NewTicker(time.Second)
+	defer t.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-t.C:
+			for _, p := range m.Pools() {
+				p.maintain(ctx)
+			}
+		}
+	}
+}
+
