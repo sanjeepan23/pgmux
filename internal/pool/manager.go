@@ -60,3 +60,14 @@ func (m *Manager) Pools() []*Pool {
 	return out
 }
 
+// Reload applies a new config and dialer to all pools.
+func (m *Manager) Reload(cfg *config.Config, d *Dialer) {
+	m.cfg.Store(cfg)
+	if d != nil {
+		m.dialer.Store(d)
+	}
+	for _, p := range m.Pools() {
+		p.Resize(cfg.PoolFor(p.Key.Database))
+	}
+}
+
