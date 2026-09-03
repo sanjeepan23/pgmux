@@ -31,3 +31,16 @@ type fakeServer struct {
 	closed bool
 }
 
+func newFakeServer(t *testing.T) *fakeServer {
+	t.Helper()
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	s := &fakeServer{ln: ln}
+	s.wg.Add(1)
+	go s.accept()
+	t.Cleanup(s.close)
+	return s
+}
+
