@@ -87,3 +87,24 @@ func (m *Manager) Run(ctx context.Context) {
 	}
 }
 
+// Close closes idle connections and stops all pools from handing out connections.
+func (m *Manager) Close() {
+	for _, p := range m.Pools() {
+		p.close()
+	}
+}
+
+// MetricStats returns pool snapshots for the Prometheus gauges.
+func (m *Manager) MetricStats() []metrics.PoolStat {
+	pools := m.Pools()
+	out := make([]metrics.PoolStat, 0, len(pools))
+	for _, p := range pools {
+		s := p.Stats()
+		out = append(out, metrics.PoolStat{
+			User: s.User, Database: s.Database, Mode: s.Mode,
+			ClientsActive: s.Clients, ClientsWaiting: s.ClientsWaiting,
+			ServersActive: s.ServersActive, ServersIdle: s.ServersIdle, MaxSize: s.MaxSize,
+		})
+	}
+	return out
+}
