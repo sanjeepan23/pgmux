@@ -43,3 +43,20 @@ func (m *Manager) Get(key Key, login Login) *Pool {
 	return p
 }
 
+// Pools returns all pools sorted by user and database.
+func (m *Manager) Pools() []*Pool {
+	m.mu.Lock()
+	out := make([]*Pool, 0, len(m.pools))
+	for _, p := range m.pools {
+		out = append(out, p)
+	}
+	m.mu.Unlock()
+	sort.Slice(out, func(i, j int) bool {
+		if out[i].Key.User != out[j].Key.User {
+			return out[i].Key.User < out[j].Key.User
+		}
+		return out[i].Key.Database < out[j].Key.Database
+	})
+	return out
+}
+
