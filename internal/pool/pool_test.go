@@ -44,3 +44,25 @@ func newFakeServer(t *testing.T) *fakeServer {
 	return s
 }
 
+func (s *fakeServer) accept() {
+	defer s.wg.Done()
+	for {
+		c, err := s.ln.Accept()
+		if err != nil {
+			return
+		}
+		s.mu.Lock()
+		if s.closed {
+			s.mu.Unlock()
+			c.Close()
+			return
+		}
+		s.conns = append(s.conns, c)
+		s.mu.Unlock()
+		s.dials.Add(1)
+		s.open.Add(1)
+		s.wg.Add(1)
+		go s.serve(c)
+	}
+}
+
