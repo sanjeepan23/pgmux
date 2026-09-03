@@ -20,3 +20,14 @@ func TestMain(m *testing.M) {
 	goleak.VerifyTestMain(m)
 }
 
+// fakeServer speaks just enough of the protocol for the pool: trust login and empty queries.
+type fakeServer struct {
+	ln     net.Listener
+	open   atomic.Int64
+	dials  atomic.Int64
+	wg     sync.WaitGroup
+	mu     sync.Mutex
+	conns  []net.Conn
+	closed bool
+}
+
