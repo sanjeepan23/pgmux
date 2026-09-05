@@ -66,3 +66,30 @@ func (s *fakeServer) accept() {
 	}
 }
 
+func (s *fakeServer) serve(c net.Conn) {
+	defer s.wg.Done()
+	defer s.open.Add(-1)
+	defer c.Close()
+	rd := protocol.NewReader(c, 0)
+	wr := protocol.NewWriter(c)
+	if _, err := rd.ReadStartup(); err != nil {
+		return
+	}
+	_ = wr.Write(&pgproto3.AuthenticationOk{})
+	_ = wr.Write(&pgproto3.ParameterStatus{Name: "server_version", Value: "16.0"})
+	_ = wr.Write(&pgproto3.BackendKeyData{ProcessID: 1, SecretKey: []byte{0, 0, 0, 2}})
+	_ = wr.WriteRaw(protocol.ReadyForQuery('I'))
+	_ = wr.Flush()
+	for {
+		m, err := rd.ReadMessage()
+		if err != nil || m.Type == 'X' {
+			return
+		}
+		if m.Type == 'Q' {
+			_ = wr.Write(&pgproto3.EmptyQueryResponse{})
+			_ = wr.WriteRaw(protocol.ReadyForQuery('I'))
+			_ = wr.Flush()
+		}
+	}
+}
+
