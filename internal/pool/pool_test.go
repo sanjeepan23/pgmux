@@ -104,3 +104,16 @@ func (s *fakeServer) close() {
 	s.wg.Wait()
 }
 
+func (s *fakeServer) dialer(t *testing.T) func() *Dialer {
+	host, port, _ := net.SplitHostPort(s.ln.Addr().String())
+	var p int
+	for _, ch := range port {
+		p = p*10 + int(ch-'0')
+	}
+	d, err := NewDialer(host, p, "disable", "", time.Second)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return func() *Dialer { return d }
+}
+
