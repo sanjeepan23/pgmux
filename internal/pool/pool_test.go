@@ -93,3 +93,14 @@ func (s *fakeServer) serve(c net.Conn) {
 	}
 }
 
+func (s *fakeServer) close() {
+	s.mu.Lock()
+	s.closed = true
+	for _, c := range s.conns {
+		c.Close()
+	}
+	s.mu.Unlock()
+	s.ln.Close()
+	s.wg.Wait()
+}
+
