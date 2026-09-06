@@ -164,3 +164,29 @@ func TestPoolRespectsMaxSize(t *testing.T) {
 	}
 }
 
+func TestPoolWaitTimeout(t *testing.T) {
+	srv := newFakeServer(t)
+	st := settings(1)
+	st.QueryWaitTimeout = 50 * time.Millisecond
+	p := newTestPool(t, srv, st)
+	c, err := p.Acquire(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := p.Acquire(context.Background()); !errors.Is(err, ErrWaitTimeout) {
+		t.Fatalf("err = %v, want ErrWaitTimeout", err)
+	}
+	p.Release(c)
+	c2, err := p.Acquire(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if c2 != c {
+		t.Fatal("idle connection was not reused")
+	}
+	p.Release(c2)
+	if s := p.Stats(); s.ServersTotal != 1 || s.ClientsWaiting != 0 {
+		t.Fatalf("stats = %+v", s)
+	}
+}
+
