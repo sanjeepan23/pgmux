@@ -340,3 +340,16 @@ func TestPoolHealthCheckDropsDeadConn(t *testing.T) {
 	p.Release(c2)
 }
 
+func TestPoolDialError(t *testing.T) {
+	srv := newFakeServer(t)
+	d := srv.dialer(t)
+	srv.close()
+	p := newPool(Key{User: "u", Database: "db"}, settings(2), Login{User: "u"}, d)
+	defer p.close()
+	if _, err := p.Acquire(context.Background()); err == nil {
+		t.Fatal("expected a dial error")
+	}
+	if s := p.Stats(); s.ServersTotal != 0 || s.ServersActive != 0 {
+		t.Fatalf("failed dial left the pool unbalanced: %+v", s)
+	}
+}
