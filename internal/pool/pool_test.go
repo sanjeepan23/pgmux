@@ -283,3 +283,38 @@ func TestPoolPauseResume(t *testing.T) {
 	}
 }
 
+func TestPoolResizeAndMaintain(t *testing.T) {
+	srv := newFakeServer(t)
+	st := settings(3)
+	p := newTestPool(t, srv, st)
+	var cs []*Conn
+	for i := 0; i < 3; i++ {
+		c, _ := p.Acquire(context.Background())
+		cs = append(cs, c)
+	}
+	for _, c := range cs {
+		p.Release(c)
+	}
+	st.MaxSize = 1
+	p.Resize(st)
+	if s := p.Stats(); s.ServersTotal != 1 {
+		t.Fatalf("after shrink: %+v", s)
+	}
+
+	st.MaxSize, st.MinSize, st.IdleTimeout = 3, 2, time.Millisecond
+	p.Resize(st)
+	p.maintain(context.Background())
+	deadline := time.Now().Add(2 * time.Second)
+	for p.Stats().ServersIdle != 2 && time.Now().Before(deadline) {
+		time.Sleep(5 * time.Millisecond)
+	}
+	if s := p.Stats(); s.ServersTotal != 2 {
+		t.Fatalf("min_size not kept: %+v", s)
+	}
+	time.Sleep(5 * time.Millisecond)
+	p.maintain(context.Background())
+	if s := p.Stats(); s.ServersTotal != 2 {
+		t.Fatalf("idle_timeout closed connections below min_size: %+v", s)
+	}
+}
+
