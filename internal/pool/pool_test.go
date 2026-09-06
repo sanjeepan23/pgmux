@@ -117,3 +117,50 @@ func (s *fakeServer) dialer(t *testing.T) func() *Dialer {
 	return func() *Dialer { return d }
 }
 
+func settings(size int) config.PoolSettings {
+	return config.PoolSettings{ServerDB: "db", Mode: config.ModeTransaction, MaxSize: size, QueryWaitTimeout: 5 * time.Second}
+}
+
+func newTestPool(t *testing.T, s *fakeServer, st config.PoolSettings) *Pool {
+	p := newPool(Key{User: "u", Database: "db"}, st, Login{User: "u"}, s.dialer(t))
+	t.Cleanup(p.close)
+	return p
+}
+
+func TestPoolRespectsMaxSize(t *testing.T) {
+	srv := newFakeServer(t)
+	p := newTestPool(t, srv, settings(4))
+	var held, maxHeld atomic.Int64
+	var wg sync.WaitGroup
+	for i := 0; i < 50; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for j := 0; j < 20; j++ {
+				c, err := p.Acquire(context.Background())
+				if err != nil {
+					t.Error(err)
+					return
+				}
+				n := held.Add(1)
+				for {
+					m := maxHeld.Load()
+					if n <= m || maxHeld.CompareAndSwap(m, n) {
+						break
+					}
+				}
+				time.Sleep(100 * time.Microsecond)
+				held.Add(-1)
+				p.Release(c)
+			}
+		}()
+	}
+	wg.Wait()
+	if maxHeld.Load() > 4 || srv.dials.Load() > 4 {
+		t.Fatalf("held %d at once, dialed %d, max is 4", maxHeld.Load(), srv.dials.Load())
+	}
+	if s := p.Stats(); s.ServersActive != 0 || s.ServersIdle != s.ServersTotal {
+		t.Fatalf("pool not balanced after test: %+v", s)
+	}
+}
+
