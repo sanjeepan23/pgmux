@@ -190,3 +190,38 @@ func TestPoolWaitTimeout(t *testing.T) {
 	}
 }
 
+func TestPoolHandsOffInOrder(t *testing.T) {
+	srv := newFakeServer(t)
+	p := newTestPool(t, srv, settings(1))
+	c, _ := p.Acquire(context.Background())
+	order := make(chan int, 3)
+	var wg sync.WaitGroup
+	for i := 0; i < 3; i++ {
+		wg.Add(1)
+		go func(i int) {
+			defer wg.Done()
+			got, err := p.Acquire(context.Background())
+			if err != nil {
+				t.Error(err)
+				return
+			}
+			order <- i
+			p.Release(got)
+		}(i)
+		// Wait until the goroutine is in the queue, so the arrival order is fixed.
+		for p.Stats().ClientsWaiting != i+1 {
+			time.Sleep(time.Millisecond)
+		}
+	}
+	p.Release(c)
+	wg.Wait()
+	close(order)
+	want := 0
+	for got := range order {
+		if got != want {
+			t.Fatalf("waiter %d served before waiter %d", got, want)
+		}
+		want++
+	}
+}
+
