@@ -225,3 +225,29 @@ func TestPoolHandsOffInOrder(t *testing.T) {
 	}
 }
 
+func TestPoolDestroyLetsWaiterDial(t *testing.T) {
+	srv := newFakeServer(t)
+	p := newTestPool(t, srv, settings(1))
+	c, _ := p.Acquire(context.Background())
+	got := make(chan *Conn)
+	go func() {
+		c2, err := p.Acquire(context.Background())
+		if err != nil {
+			t.Error(err)
+		}
+		got <- c2
+	}()
+	for p.Stats().ClientsWaiting != 1 {
+		time.Sleep(time.Millisecond)
+	}
+	p.Destroy(c)
+	c2 := <-got
+	if c2 == nil || c2 == c {
+		t.Fatal("waiter did not get a new connection")
+	}
+	p.Release(c2)
+	if srv.dials.Load() != 2 {
+		t.Fatalf("dials = %d, want 2", srv.dials.Load())
+	}
+}
+
