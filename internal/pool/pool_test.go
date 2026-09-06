@@ -318,3 +318,25 @@ func TestPoolResizeAndMaintain(t *testing.T) {
 	}
 }
 
+func TestPoolHealthCheckDropsDeadConn(t *testing.T) {
+	srv := newFakeServer(t)
+	st := settings(1)
+	st.HealthCheck = time.Nanosecond
+	p := newTestPool(t, srv, st)
+	c, _ := p.Acquire(context.Background())
+	p.Release(c)
+	// Kill the server side of the idle connection.
+	srv.mu.Lock()
+	srv.conns[0].Close()
+	srv.mu.Unlock()
+	time.Sleep(10 * time.Millisecond)
+	c2, err := p.Acquire(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if c2 == c {
+		t.Fatal("dead connection was reused")
+	}
+	p.Release(c2)
+}
+
