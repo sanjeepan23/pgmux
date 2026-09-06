@@ -251,3 +251,35 @@ func TestPoolDestroyLetsWaiterDial(t *testing.T) {
 	}
 }
 
+func TestPoolPauseResume(t *testing.T) {
+	srv := newFakeServer(t)
+	p := newTestPool(t, srv, settings(2))
+	c, _ := p.Acquire(context.Background())
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Millisecond)
+	defer cancel()
+	if err := p.Pause(ctx); err == nil {
+		t.Fatal("Pause returned before the held connection came back")
+	}
+	p.Release(c)
+	if err := p.Pause(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	got := make(chan error, 1)
+	go func() {
+		c, err := p.Acquire(context.Background())
+		if err == nil {
+			p.Release(c)
+		}
+		got <- err
+	}()
+	select {
+	case <-got:
+		t.Fatal("Acquire succeeded while paused")
+	case <-time.After(30 * time.Millisecond):
+	}
+	p.Resume()
+	if err := <-got; err != nil {
+		t.Fatal(err)
+	}
+}
+
