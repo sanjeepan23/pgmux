@@ -107,3 +107,173 @@ func (srv *Server) Serve(ctx context.Context, nc net.Conn) {
 	}
 }
 
+var errCancelRequest = errors.New("cancel request")
+
+func (srv *Server) startup(ctx context.Context, nc net.Conn) (*Session, error) {
+	cfg := srv.cfg.Load()
+	_ = nc.SetDeadline(time.Now().Add(loginTimeout))
+	rd := protocol.NewReader(nc, 0)
+	wr := protocol.NewWriter(nc)
+	isTLS := false
+
+	fail := func(code, msg string) error {
+		_ = wr.WriteRaw(protocol.ErrorMessage("FATAL", code, msg))
+		_ = wr.Flush()
+		return errors.New(msg)
+	}
+
+	var params map[string]string
+	var version uint32
+	for params == nil {
+		body, err := rd.ReadStartup()
+		if err != nil {
+			return nil, err
+		}
+		switch code := binary.BigEndian.Uint32(body); code {
+		case protocol.SSLRequestCode:
+			tlsCfg := srv.tls.Load()
+			if tlsCfg == nil || isTLS {
+				if _, err := nc.Write([]byte{'N'}); err != nil {
+					return nil, err
+				}
+				continue
+			}
+			// Bytes sent before the TLS handshake would bypass TLS, so refuse them.
+			if rd.Buffered() > 0 {
+				return nil, errors.New("client sent data after SSLRequest")
+			}
+			if _, err := nc.Write([]byte{'S'}); err != nil {
+				return nil, err
+			}
+			tc := tls.Server(nc, tlsCfg)
+			if err := tc.HandshakeContext(ctx); err != nil {
+				return nil, fmt.Errorf("tls handshake: %w", err)
+			}
+			nc, isTLS = tc, true
+			rd, wr = protocol.NewReader(nc, 0), protocol.NewWriter(nc)
+		case protocol.GSSEncRequestCode:
+			if _, err := nc.Write([]byte{'N'}); err != nil {
+				return nil, err
+			}
+		case protocol.CancelRequestCode:
+			srv.handleCancel(body)
+			return nil, errCancelRequest
+		default:
+			var sm pgproto3.StartupMessage
+			if err := sm.Decode(body); err != nil {
+				return nil, fail("08P01", err.Error())
+			}
+			params, version = sm.Parameters, sm.ProtocolVersion
+		}
+	}
+
+	if cfg.ClientTLS.Required && !isTLS {
+		return nil, fail("28000", "pgmux requires TLS")
+	}
+	if params["replication"] != "" && params["replication"] != "false" {
+		return nil, fail("08P01", "pgmux does not support replication connections")
+	}
+	user := params["user"]
+	if user == "" {
+		return nil, fail("28000", "no user name in startup packet")
+	}
+	db := params["database"]
+	if db == "" {
+		db = user
+	}
+
+	// pgmux speaks protocol 3.0 and supports no protocol extensions.
+	var unknownOpts []string
+	for k := range params {
+		if strings.HasPrefix(k, "_pq_.") {
+			unknownOpts = append(unknownOpts, k)
+		}
+	}
+	if version != protocol.ProtocolVersion30 || len(unknownOpts) > 0 {
+		if err := wr.Write(&pgproto3.NegotiateProtocolVersion{NewestMinorProtocol: 0, UnrecognizedOptions: unknownOpts}); err != nil {
+			return nil, err
+		}
+	}
+
+	cred, err := srv.credential(ctx, cfg, user)
+	if err != nil {
+		slog.Warn("auth_query failed", "user", user, "err", err)
+		return nil, fail("28000", "pgmux: cannot look up user")
+	}
+	keys, err := auth.AuthenticateClient(rd, wr, cfg.Auth.Method, cred)
+	if err != nil {
+		metrics.ErrorsTotal.WithLabelValues(metrics.ErrAuthFailed).Inc()
+		if errors.Is(err, auth.ErrAuthFailed) {
+			return nil, fail("28P01", fmt.Sprintf("password authentication failed for user %q", user))
+		}
+		return nil, fail("28000", "authentication failed: "+err.Error())
+	}
+
+	var login pool.Login
+	if cred != nil {
+		login = loginFor(cred)
+	} else {
+		login = pool.Login{User: user}
+	}
+	p := srv.Manager.Get(pool.Key{User: user, Database: db}, login)
+	if keys != nil {
+		p.SetClientKeys(keys.ClientKey, keys.ServerKey)
+	}
+
+	serverParams, err := srv.serverParams(ctx, p)
+	if err != nil {
+		return nil, fail("08006", "pgmux: cannot connect to server: "+err.Error())
+	}
+
+	s := &Session{
+		srv:       srv,
+		ctx:       ctx,
+		conn:      nc,
+		rd:        rd,
+		wr:        wr,
+		pool:      p,
+		txMode:    p.Mode() == config.ModeTransaction,
+		user:      user,
+		db:        db,
+		stmts:     map[string]*prepared.Statement{},
+		warned:    map[string]bool{},
+		txStatus:  'I',
+		params:    clientParams(params),
+		relayDone: closedChan(),
+		poke:      make(chan struct{}, 1),
+		lastUsed:  time.Now(),
+
+		queries:      metrics.QueriesTotal.WithLabelValues(user, db),
+		transactions: metrics.TransactionsTotal.WithLabelValues(user, db),
+	}
+	// A client expects the server defaults for tracked parameters that it did not set.
+	// Without this, a value that another client SET on the server would leak to this client.
+	for name, v := range serverParams {
+		key := strings.ToLower(name)
+		if _, ok := s.params[key]; !ok && trackedParams[key] {
+			s.params[key] = v
+		}
+	}
+	if err := srv.register(s, cfg); err != nil {
+		metrics.ErrorsTotal.WithLabelValues(metrics.ErrClientLimit).Inc()
+		return nil, fail("53300", err.Error())
+	}
+	s.log = slog.With("session", s.id, "user", user, "db", db, "remote", nc.RemoteAddr().String())
+
+	_ = wr.Write(&pgproto3.AuthenticationOk{})
+	for name, v := range serverParams {
+		if cv, ok := s.params[strings.ToLower(name)]; ok {
+			v = cv
+		}
+		_ = wr.Write(&pgproto3.ParameterStatus{Name: name, Value: v})
+	}
+	_ = wr.Write(&pgproto3.BackendKeyData{ProcessID: s.key.pid, SecretKey: binary.BigEndian.AppendUint32(nil, s.key.secret)})
+	_ = wr.WriteRaw(protocol.ReadyForQuery('I'))
+	if err := wr.Flush(); err != nil {
+		srv.unregister(s)
+		return nil, err
+	}
+	_ = nc.SetDeadline(time.Time{})
+	return s, nil
+}
+
