@@ -277,3 +277,19 @@ func (srv *Server) startup(ctx context.Context, nc net.Conn) (*Session, error) {
 	return s, nil
 }
 
+// clientParams returns the startup parameters that pgmux applies to each server, keyed by lower-case name.
+func clientParams(startup map[string]string) map[string]string {
+	out := map[string]string{"application_name": ""}
+	for k, v := range startup {
+		switch k {
+		case "user", "database", "replication", "options":
+			continue
+		}
+		if strings.HasPrefix(k, "_pq_.") {
+			continue
+		}
+		out[strings.ToLower(k)] = v
+	}
+	return out
+}
+
