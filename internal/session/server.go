@@ -340,3 +340,31 @@ func (srv *Server) credential(ctx context.Context, cfg *config.Config, user stri
 	return cred, nil
 }
 
+// runAuthQuery fetches a user's password hash from Postgres as auth_user.
+func (srv *Server) runAuthQuery(ctx context.Context, cfg *config.Config, user string) (*auth.Credential, error) {
+	authCred, ok := (*srv.creds.Load())[cfg.Auth.AuthUser]
+	if !ok {
+		return nil, fmt.Errorf("auth_user %q is not in the userlist", cfg.Auth.AuthUser)
+	}
+	p := srv.Manager.Get(pool.Key{User: cfg.Auth.AuthUser, Database: cfg.Auth.AuthDBName}, loginFor(authCred))
+	c, err := p.Acquire(ctx)
+	if err != nil {
+		return nil, err
+	}
+	sql := strings.ReplaceAll(cfg.Auth.AuthQuery, "$1", quoteLiteral(user))
+	row, err := queryRow(ctx, c, sql)
+	if err != nil {
+		if c.Broken() {
+			p.Destroy(c)
+		} else {
+			p.Release(c)
+		}
+		return nil, err
+	}
+	p.Release(c)
+	if len(row) < 2 || row[1] == nil {
+		return nil, nil
+	}
+	return auth.ParseCredential(user, string(row[1]))
+}
+
