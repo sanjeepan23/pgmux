@@ -293,3 +293,22 @@ func clientParams(startup map[string]string) map[string]string {
 	return out
 }
 
+func closedChan() chan struct{} {
+	ch := make(chan struct{})
+	close(ch)
+	return ch
+}
+
+// serverParams returns the pool's cached server parameters. It opens a server connection if the pool has none yet.
+func (srv *Server) serverParams(ctx context.Context, p *pool.Pool) (map[string]string, error) {
+	if params := p.ServerParams(); params != nil {
+		return params, nil
+	}
+	c, err := p.Acquire(ctx)
+	if err != nil {
+		return nil, err
+	}
+	p.Release(c)
+	return p.ServerParams(), nil
+}
+
