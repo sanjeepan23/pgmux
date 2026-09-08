@@ -312,3 +312,31 @@ func (srv *Server) serverParams(ctx context.Context, p *pool.Pool) (map[string]s
 	return p.ServerParams(), nil
 }
 
+func loginFor(cred *auth.Credential) pool.Login {
+	return pool.Login{User: cred.User, Password: cred.Password, MD5: cred.MD5}
+}
+
+// credential finds the stored password for user in the userlist, or with auth_query.
+// It returns nil, nil when the user is unknown.
+func (srv *Server) credential(ctx context.Context, cfg *config.Config, user string) (*auth.Credential, error) {
+	if c, ok := (*srv.creds.Load())[user]; ok {
+		return c, nil
+	}
+	if cfg.Auth.AuthUser == "" || cfg.Auth.Method == auth.MethodTrust {
+		return nil, nil
+	}
+	if e, ok := srv.authCache.Load(user); ok {
+		if entry := e.(authCacheEntry); time.Now().Before(entry.expires) {
+			return entry.cred, nil
+		}
+	}
+	cred, err := srv.runAuthQuery(ctx, cfg, user)
+	if err != nil {
+		return nil, err
+	}
+	if cred != nil {
+		srv.authCache.Store(user, authCacheEntry{cred: cred, expires: time.Now().Add(time.Minute)})
+	}
+	return cred, nil
+}
+
