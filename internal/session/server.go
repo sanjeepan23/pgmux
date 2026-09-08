@@ -28,3 +28,25 @@ import (
 // loginTimeout limits the time from TCP accept to the end of authentication.
 const loginTimeout = 15 * time.Second
 
+type cancelKey struct {
+	pid    uint32
+	secret uint32
+}
+
+// Server accepts client connections and runs a Session for each one.
+type Server struct {
+	Manager *pool.Manager
+
+	cfg   atomic.Pointer[config.Config]
+	creds atomic.Pointer[map[string]*auth.Credential]
+	tls   atomic.Pointer[tls.Config]
+
+	authCache sync.Map // user -> authCacheEntry
+
+	mu        sync.Mutex
+	sessions  map[uint64]*Session
+	byCancel  map[cancelKey]*Session
+	userConns map[string]int
+	nextID    uint64
+}
+
