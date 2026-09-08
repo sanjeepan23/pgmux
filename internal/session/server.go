@@ -67,3 +67,21 @@ func NewServer(cfg *config.Config, creds map[string]*auth.Credential, tlsCfg *tl
 	return s
 }
 
+// Reload swaps in a new config, user list and TLS config for new connections.
+func (srv *Server) Reload(cfg *config.Config, creds map[string]*auth.Credential, tlsCfg *tls.Config) {
+	srv.cfg.Store(cfg)
+	if creds == nil {
+		creds = map[string]*auth.Credential{}
+	}
+	srv.creds.Store(&creds)
+	srv.tls.Store(tlsCfg)
+	srv.authCache.Clear()
+	for user, cred := range creds {
+		for _, p := range srv.Manager.Pools() {
+			if p.Key.User == user {
+				p.UpdateLogin(loginFor(cred))
+			}
+		}
+	}
+}
+
