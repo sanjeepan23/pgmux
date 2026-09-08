@@ -50,3 +50,20 @@ type Server struct {
 	nextID    uint64
 }
 
+type authCacheEntry struct {
+	cred    *auth.Credential
+	expires time.Time
+}
+
+// NewServer returns a Server. tlsCfg is nil when client TLS is off.
+func NewServer(cfg *config.Config, creds map[string]*auth.Credential, tlsCfg *tls.Config, mgr *pool.Manager) *Server {
+	s := &Server{
+		Manager:   mgr,
+		sessions:  map[uint64]*Session{},
+		byCancel:  map[cancelKey]*Session{},
+		userConns: map[string]int{},
+	}
+	s.Reload(cfg, creds, tlsCfg)
+	return s
+}
+
