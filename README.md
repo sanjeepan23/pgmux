@@ -44,3 +44,57 @@ docker run -p 6432:6432 -p 9930:9930 -v "$PWD/pgmux.yaml:/etc/pgmux/pgmux.yaml" 
 
 The image has the dashboard in `/usr/share/pgmux/dashboard`.
 
+## Architecture
+
+```mermaid
+flowchart LR
+    C1[client] & C2[client] & C3[client] --> L[listener<br/>TCP and TLS accept]
+    L --> A[startup and auth<br/>SCRAM, MD5, auth_query]
+    A --> S[session state machine<br/>one per client]
+    S <-->|acquire and release| P[pool per user and database]
+    P <--> PG[(Postgres)]
+    S --> M[metrics and admin API]
+```
+
+Each client connection has one goroutine. It reads client messages and forwards them to a server
+connection. While a server connection is attached, a relay goroutine forwards the server messages to
+the client.
+
+The session state machine is the core. It keeps a queue of the requests that wait for a response.
+Each server message completes the request at the head of the queue. In transaction mode, the relay
+releases the server connection when all of these are true:
+
+- the server sent `ReadyForQuery` with status `I` (idle),
+- no request waits for a response,
+- the client sent no extended-protocol messages after its last `Sync`.
+
+So a pipeline of queries, a `COPY`, or an open transaction keeps its server connection.
+
+### Prepared statements in transaction mode
+
+A client prepares a statement on one server, but its next transaction can run on another server.
+pgmux handles this as follows:
+
+1. pgmux gives each statement a server-side name from a hash of its query text and parameter types.
+   Clients that prepare the same query share one statement on each server.
+2. Each server connection records which statements it has. Each client records its own names.
+3. Before a `Bind` or `Describe`, pgmux sends the `Parse` again if the current server lacks the
+   statement. pgmux drops the response to that `Parse`, so the client does not see it.
+4. When the server already has the statement, pgmux answers the client's `Parse` itself.
+5. When a client sends `Parse` or `Close` while it has no server and no open transaction, pgmux
+   answers without a server. This stops a client that prepares synchronously from deadlocking the
+   pool. The trade-off: a syntax error in that statement shows at `Bind` time and not at `Parse` time.
+
+### Server parameters
+
+pgmux keeps the values that each client expects for `application_name`, `client_encoding`,
+`DateStyle`, `IntervalStyle`, `TimeZone` and `standard_conforming_strings`. When a client lands on a
+server with different values, pgmux sends `SET` first, in the same write as the client's query.
+So `SET TimeZone` works in transaction mode, and one client's value never leaks to another client.
+
+### Session state that does not work in transaction mode
+
+pgmux logs a warning and counts `pgmux_session_feature_warnings_total` for a non-`LOCAL` `SET` of
+other parameters, `PREPARE`, temporary tables, session advisory locks and `WITH HOLD` cursors.
+pgmux rejects `LISTEN` in transaction mode with a clear error. `LISTEN` works in session mode.
+
