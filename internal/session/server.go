@@ -85,3 +85,25 @@ func (srv *Server) Reload(cfg *config.Config, creds map[string]*auth.Credential,
 	}
 }
 
+// Serve runs one client connection until it closes.
+func (srv *Server) Serve(ctx context.Context, nc net.Conn) {
+	metrics.ClientConnectionsTotal.Inc()
+	s, err := srv.startup(ctx, nc)
+	if err != nil {
+		if s == nil {
+			_ = nc.Close()
+		}
+		if !errors.Is(err, errCancelRequest) {
+			slog.Debug("client login failed", "remote", nc.RemoteAddr(), "err", err)
+		}
+		return
+	}
+	defer srv.unregister(s)
+	defer s.conn.Close()
+	defer s.finish()
+	err = s.run()
+	if !errors.Is(err, errTerminate) && !errors.Is(err, net.ErrClosed) {
+		s.log.Debug("client session ended", "err", err)
+	}
+}
+
