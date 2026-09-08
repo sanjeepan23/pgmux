@@ -368,3 +368,74 @@ func (srv *Server) runAuthQuery(ctx context.Context, cfg *config.Config, user st
 	return auth.ParseCredential(user, string(row[1]))
 }
 
+// queryRow runs a simple query and returns the first row, or nil when there are no rows.
+func queryRow(ctx context.Context, c *pool.Conn, sql string) ([][]byte, error) {
+	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	defer cancel()
+	if err := c.WriteRaw(protocol.MustEncode(&pgproto3.Query{String: sql})); err != nil {
+		return nil, err
+	}
+	if err := c.Flush(); err != nil {
+		return nil, err
+	}
+	var row [][]byte
+	var qerr error
+	for {
+		select {
+		case <-ctx.Done():
+			c.MarkBroken()
+			return nil, ctx.Err()
+		case m, ok := <-c.Msgs():
+			if !ok {
+				return nil, c.ReadErr()
+			}
+			switch m.Type {
+			case 'D':
+				if row == nil {
+					var dr pgproto3.DataRow
+					if err := dr.Decode(m.Body); err != nil {
+						return nil, err
+					}
+					row = make([][]byte, len(dr.Values))
+					for i, v := range dr.Values {
+						if v != nil {
+							row[i] = append([]byte{}, v...)
+						}
+					}
+				}
+			case 'E':
+				qerr = protocol.DecodeError(m.Body)
+			case 'Z':
+				return row, qerr
+			}
+		}
+	}
+}
+
+func (srv *Server) register(s *Session, cfg *config.Config) error {
+	srv.mu.Lock()
+	defer srv.mu.Unlock()
+	if cfg.MaxClientConn > 0 && len(srv.sessions) >= cfg.MaxClientConn {
+		return errors.New("too many client connections (max_client_conn)")
+	}
+	if u, ok := cfg.Users[s.user]; ok && u.MaxConnections > 0 && srv.userConns[s.user] >= u.MaxConnections {
+		return fmt.Errorf("too many connections for user %q", s.user)
+	}
+	srv.nextID++
+	s.id = srv.nextID
+	for {
+		var b [8]byte
+		_, _ = rand.Read(b[:])
+		k := cancelKey{pid: binary.BigEndian.Uint32(b[:4]) & 0x7fffffff, secret: binary.BigEndian.Uint32(b[4:])}
+		if _, taken := srv.byCancel[k]; !taken {
+			s.key = k
+			break
+		}
+	}
+	srv.sessions[s.id] = s
+	srv.byCancel[s.key] = s
+	srv.userConns[s.user]++
+	s.pool.ClientConnected()
+	return nil
+}
+
