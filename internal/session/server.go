@@ -439,3 +439,15 @@ func (srv *Server) register(s *Session, cfg *config.Config) error {
 	return nil
 }
 
+func (srv *Server) unregister(s *Session) {
+	srv.mu.Lock()
+	defer srv.mu.Unlock()
+	if _, ok := srv.sessions[s.id]; !ok {
+		return
+	}
+	delete(srv.sessions, s.id)
+	delete(srv.byCancel, s.key)
+	srv.userConns[s.user]--
+	s.pool.ClientDisconnected()
+}
+
