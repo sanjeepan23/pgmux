@@ -24,3 +24,15 @@ import (
 // kind is the type of a request that waits for a server response.
 type kind uint8
 
+const (
+	kParse kind = iota
+	kBind
+	kDescribe
+	kExecute
+	kClose
+	// kSync covers Sync, simple Query and FunctionCall. Each one ends with ReadyForQuery.
+	kSync
+	// kSynth holds responses that pgmux makes itself. They go to the client in queue order.
+	kSynth
+)
+
