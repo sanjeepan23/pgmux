@@ -464,3 +464,20 @@ func (srv *Server) handleCancel(body []byte) {
 	}
 }
 
+// CloseIdle closes all clients that have no server attached. It returns the number of clients still open.
+func (srv *Server) CloseIdle() int {
+	srv.mu.Lock()
+	list := make([]*Session, 0, len(srv.sessions))
+	for _, s := range srv.sessions {
+		list = append(list, s)
+	}
+	srv.mu.Unlock()
+	open := 0
+	for _, s := range list {
+		if !s.closeIfIdle() {
+			open++
+		}
+	}
+	return open
+}
+
