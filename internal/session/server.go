@@ -481,3 +481,18 @@ func (srv *Server) CloseIdle() int {
 	return open
 }
 
+// CloseAll closes all client connections.
+func (srv *Server) CloseAll() {
+	srv.mu.Lock()
+	defer srv.mu.Unlock()
+	for _, s := range srv.sessions {
+		_ = s.conn.Close()
+	}
+}
+
+// ClientCount returns the number of logged-in clients.
+func (srv *Server) ClientCount() int {
+	srv.mu.Lock()
+	defer srv.mu.Unlock()
+	return len(srv.sessions)
+}
