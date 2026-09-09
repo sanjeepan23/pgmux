@@ -451,3 +451,16 @@ func (srv *Server) unregister(s *Session) {
 	s.pool.ClientDisconnected()
 }
 
+func (srv *Server) handleCancel(body []byte) {
+	if len(body) != 12 {
+		return
+	}
+	k := cancelKey{pid: binary.BigEndian.Uint32(body[4:]), secret: binary.BigEndian.Uint32(body[8:])}
+	srv.mu.Lock()
+	s := srv.byCancel[k]
+	srv.mu.Unlock()
+	if s != nil {
+		s.cancel()
+	}
+}
+
