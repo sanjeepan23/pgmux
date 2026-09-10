@@ -151,3 +151,17 @@ func (s *Session) handle(m protocol.Message) error {
 	}
 }
 
+// forward sends m to the server and queues the expected response.
+func (s *Session) forward(m protocol.Message, p pending, extended bool) error {
+	c, err := s.lockBackend()
+	if err != nil {
+		return err
+	}
+	s.queue = append(s.queue, p)
+	if extended {
+		s.inBatch = true
+	}
+	s.mu.Unlock()
+	return s.send(c, m)
+}
+
