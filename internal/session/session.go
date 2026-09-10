@@ -348,3 +348,14 @@ func (s *Session) detached() bool {
 	return ok
 }
 
+// writeClient writes a response from the client goroutine. The caller must make sure that no relay runs.
+func (s *Session) writeClient(m protocol.Message) error {
+	if err := s.wr.WriteRaw(m); err != nil {
+		return err
+	}
+	if s.rd.Buffered() > 0 {
+		return nil
+	}
+	return s.wr.Flush()
+}
+
