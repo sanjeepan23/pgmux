@@ -425,3 +425,32 @@ func (s *Session) lockBackend() (*pool.Conn, error) {
 	return c, nil
 }
 
+var paramNameRe = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_.]*$`)
+
+// syncParamsLocked queues SET commands so that the server parameters match what the client expects.
+func (s *Session) syncParamsLocked(c *pool.Conn) {
+	var sets []string
+	names := make([]string, 0, len(s.params))
+	for name := range s.params {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+	for _, name := range names {
+		want := s.params[name]
+		if have, ok := c.Param(name); ok && have == want {
+			continue
+		}
+		if !paramNameRe.MatchString(name) {
+			continue
+		}
+		sets = append(sets, fmt.Sprintf("SET %s = %s", name, quoteLiteral(want)))
+		// Parameters that the server does not report keep this value until the next reset.
+		c.SetParam(name, want)
+	}
+	if len(sets) == 0 {
+		return
+	}
+	_ = c.WriteRaw(protocol.MustEncode(&pgproto3.Query{String: strings.Join(sets, "; ")}))
+	s.queue = append(s.queue, pending{kind: kSync, swallow: true})
+}
+
