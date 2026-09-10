@@ -227,3 +227,40 @@ func (s *Session) handleParse(m protocol.Message) error {
 	return s.send(c, st.Parse)
 }
 
+// ensurePreparedLocked returns a Parse to send first if the attached server lacks the statement.
+func (s *Session) ensurePreparedLocked(c *pool.Conn, st *prepared.Statement) []protocol.Message {
+	if _, ok := c.Prepared[st.ServerName]; ok {
+		return nil
+	}
+	c.Prepared[st.ServerName] = struct{}{}
+	s.queue = append(s.queue, pending{kind: kParse, stmt: st.ServerName, swallow: true})
+	return []protocol.Message{st.Parse}
+}
+
+func (s *Session) handleBind(m protocol.Message) error {
+	if !s.txMode {
+		return s.forward(m, pending{kind: kBind}, true)
+	}
+	name, err := prepared.BindStatement(m.Body)
+	if err != nil {
+		return s.fatal("08P01", "invalid Bind message")
+	}
+	st := s.stmts[name]
+	if name == "" || st == nil {
+		return s.forward(m, pending{kind: kBind}, true)
+	}
+	body, err := prepared.RenameBind(m.Body, st.ServerName)
+	if err != nil {
+		return s.fatal("08P01", "invalid Bind message")
+	}
+	c, err := s.lockBackend()
+	if err != nil {
+		return err
+	}
+	out := s.ensurePreparedLocked(c, st)
+	s.queue = append(s.queue, pending{kind: kBind})
+	s.inBatch = true
+	s.mu.Unlock()
+	return s.send(c, append(out, protocol.Message{Type: 'B', Body: body})...)
+}
+
