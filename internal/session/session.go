@@ -165,3 +165,24 @@ func (s *Session) forward(m protocol.Message, p pending, extended bool) error {
 	return s.send(c, m)
 }
 
+func (s *Session) handleQuery(m protocol.Message) error {
+	sql := cstr(m.Body)
+	if s.txMode {
+		s.checkFeatures(sql)
+		if isListen(sql) {
+			return s.reject("0A000", "LISTEN is not supported in transaction pooling mode, use a session-mode pool")
+		}
+	}
+	s.queries.Inc()
+	c, err := s.lockBackend()
+	if err != nil {
+		return err
+	}
+	s.queue = append(s.queue, pending{kind: kSync})
+	if s.txMode && resetsState(sql) {
+		c.ResetState()
+	}
+	s.mu.Unlock()
+	return s.send(c, m)
+}
+
