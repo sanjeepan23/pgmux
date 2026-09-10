@@ -264,3 +264,23 @@ func (s *Session) handleBind(m protocol.Message) error {
 	return s.send(c, append(out, protocol.Message{Type: 'B', Body: body})...)
 }
 
+func (s *Session) handleDescribe(m protocol.Message) error {
+	objType, name, err := prepared.Target(m.Body)
+	if err != nil {
+		return s.fatal("08P01", "invalid Describe message")
+	}
+	st := s.stmts[name]
+	if !s.txMode || objType != 'S' || name == "" || st == nil {
+		return s.forward(m, pending{kind: kDescribe}, true)
+	}
+	c, err := s.lockBackend()
+	if err != nil {
+		return err
+	}
+	out := s.ensurePreparedLocked(c, st)
+	s.queue = append(s.queue, pending{kind: kDescribe})
+	s.inBatch = true
+	s.mu.Unlock()
+	return s.send(c, append(out, protocol.Message{Type: 'D', Body: prepared.RenameTarget('S', st.ServerName)})...)
+}
+
