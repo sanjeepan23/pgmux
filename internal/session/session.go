@@ -102,3 +102,52 @@ func (s *Session) run() error {
 	}
 }
 
+func (s *Session) handle(m protocol.Message) error {
+	switch m.Type {
+	case 'Q':
+		return s.handleQuery(m)
+	case 'P':
+		return s.handleParse(m)
+	case 'B':
+		return s.handleBind(m)
+	case 'D':
+		return s.handleDescribe(m)
+	case 'C':
+		return s.handleClose(m)
+	case 'E':
+		s.queries.Inc()
+		return s.forward(m, pending{kind: kExecute}, true)
+	case 'S':
+		if s.deferred && s.detached() {
+			s.deferred = false
+			return s.writeClient(protocol.ReadyForQuery('I'))
+		}
+		c, err := s.lockBackend()
+		if err != nil {
+			return err
+		}
+		s.queue = append(s.queue, pending{kind: kSync})
+		s.inBatch = false
+		s.mu.Unlock()
+		return s.send(c, m)
+	case 'F':
+		return s.forward(m, pending{kind: kSync}, false)
+	case 'H', 'd', 'c', 'f':
+		// Flush and COPY data only make sense while a request is in flight.
+		// The in-flight request keeps the server attached, so the write is safe.
+		s.mu.Lock()
+		c := s.backend
+		busy := len(s.queue) > 0 || s.inBatch
+		s.mu.Unlock()
+		if c == nil || !busy {
+			return nil
+		}
+		return s.send(c, m)
+	case 'X':
+		return errTerminate
+	default:
+		metrics.ErrorsTotal.WithLabelValues(metrics.ErrClientProtocol).Inc()
+		return s.fatal("08P01", fmt.Sprintf("unsupported frontend message type %q", m.Type))
+	}
+}
+
