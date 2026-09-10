@@ -48,3 +48,42 @@ type pending struct {
 
 var errTerminate = errors.New("client terminated")
 
+// Session is one client connection after login.
+//
+// The client goroutine reads client messages and forwards them to the attached server.
+// A relay goroutine forwards server messages to the client while a server is attached.
+type Session struct {
+	srv    *Server
+	id     uint64
+	ctx    context.Context
+	conn   net.Conn
+	rd     *protocol.Reader
+	wr     *protocol.Writer
+	pool   *pool.Pool
+	txMode bool
+	key    cancelKey
+	user   string
+	db     string
+	log    *slog.Logger
+
+	queries      prometheus.Counter
+	transactions prometheus.Counter
+
+	// Only the client goroutine uses these fields.
+	stmts  map[string]*prepared.Statement
+	warned map[string]bool
+	// deferred means pgmux answered a Parse or Close without a server, and still owes the client a ReadyForQuery at Sync.
+	deferred bool
+
+	mu        sync.Mutex
+	backend   *pool.Conn
+	queue     []pending
+	inBatch   bool // the client sent extended-protocol messages after its last Sync
+	txStatus  byte
+	params    map[string]string // parameter values that the client expects, keyed by lower-case name
+	relayStop chan struct{}
+	relayDone chan struct{}
+	poke      chan struct{}
+	lastUsed  time.Time
+}
+
