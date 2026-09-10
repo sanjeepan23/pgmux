@@ -359,3 +359,16 @@ func (s *Session) writeClient(m protocol.Message) error {
 	return s.wr.Flush()
 }
 
+// fatal sends a FATAL error to the client and ends the session.
+func (s *Session) fatal(code, text string) error {
+	s.mu.Lock()
+	stop := s.backend != nil
+	s.mu.Unlock()
+	if stop {
+		s.stopRelay()
+	}
+	_ = s.wr.WriteRaw(protocol.ErrorMessage("FATAL", code, text))
+	_ = s.wr.Flush()
+	return errors.New(text)
+}
+
