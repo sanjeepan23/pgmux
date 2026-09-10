@@ -309,3 +309,29 @@ func (s *Session) handleClose(m protocol.Message) error {
 	return s.send(c)
 }
 
+// reject answers a simple query with an error, without sending it to a server.
+func (s *Session) reject(code, text string) error {
+	resp := protocol.ErrorMessage("ERROR", code, text)
+	s.mu.Lock()
+	if s.backend != nil {
+		s.queue = append(s.queue, pending{kind: kSynth, msgs: []protocol.Message{resp}, rfq: true})
+		s.mu.Unlock()
+		s.wake()
+		return nil
+	}
+	done := s.relayDone
+	s.mu.Unlock()
+	<-done
+	// No relay runs now, so this goroutine can write to the client.
+	s.mu.Lock()
+	status := s.txStatus
+	s.mu.Unlock()
+	if err := s.wr.WriteRaw(resp); err != nil {
+		return err
+	}
+	if err := s.wr.WriteRaw(protocol.ReadyForQuery(status)); err != nil {
+		return err
+	}
+	return s.wr.Flush()
+}
+
