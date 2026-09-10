@@ -186,3 +186,44 @@ func (s *Session) handleQuery(m protocol.Message) error {
 	return s.send(c, m)
 }
 
+func (s *Session) handleParse(m protocol.Message) error {
+	if !s.txMode {
+		return s.forward(m, pending{kind: kParse}, true)
+	}
+	var p pgproto3.Parse
+	if err := p.Decode(m.Body); err != nil {
+		return s.fatal("08P01", "invalid Parse message")
+	}
+	s.checkFeatures(p.Query)
+	if p.Name == "" {
+		return s.forward(m, pending{kind: kParse}, true)
+	}
+	st, err := prepared.NewStatement(&p)
+	if err != nil {
+		return err
+	}
+	s.stmts[p.Name] = st
+	if s.detached() {
+		// Do not take a server just to prepare. pgmux sends the Parse before the first Bind or Describe.
+		// A client that prepares synchronously while it holds other connections can then not deadlock the pool.
+		s.deferred = true
+		return s.writeClient(protocol.Message{Type: '1'})
+	}
+	c, err := s.lockBackend()
+	if err != nil {
+		return err
+	}
+	s.inBatch = true
+	if _, ok := c.Prepared[st.ServerName]; ok {
+		// The server already has this statement, so answer the Parse ourselves.
+		s.queue = append(s.queue, pending{kind: kSynth, msgs: []protocol.Message{{Type: '1'}}})
+		s.mu.Unlock()
+		s.wake()
+		return s.send(c)
+	}
+	c.Prepared[st.ServerName] = struct{}{}
+	s.queue = append(s.queue, pending{kind: kParse, stmt: st.ServerName})
+	s.mu.Unlock()
+	return s.send(c, st.Parse)
+}
+
