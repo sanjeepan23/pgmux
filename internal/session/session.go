@@ -335,3 +335,16 @@ func (s *Session) reject(code, text string) error {
 	return s.wr.Flush()
 }
 
+// detached reports if no server is attached and the client is outside a transaction.
+// When it returns true, no relay runs, so the client goroutine can write to the client.
+func (s *Session) detached() bool {
+	s.mu.Lock()
+	ok := s.backend == nil && s.txStatus == 'I'
+	done := s.relayDone
+	s.mu.Unlock()
+	if ok {
+		<-done
+	}
+	return ok
+}
+
