@@ -284,3 +284,28 @@ func (s *Session) handleDescribe(m protocol.Message) error {
 	return s.send(c, append(out, protocol.Message{Type: 'D', Body: prepared.RenameTarget('S', st.ServerName)})...)
 }
 
+func (s *Session) handleClose(m protocol.Message) error {
+	objType, name, err := prepared.Target(m.Body)
+	if err != nil {
+		return s.fatal("08P01", "invalid Close message")
+	}
+	if !s.txMode || objType != 'S' || name == "" {
+		return s.forward(m, pending{kind: kClose}, true)
+	}
+	// Other clients can share the server statement, so only forget the client name.
+	delete(s.stmts, name)
+	if s.detached() {
+		s.deferred = true
+		return s.writeClient(protocol.Message{Type: '3'})
+	}
+	c, err := s.lockBackend()
+	if err != nil {
+		return err
+	}
+	s.queue = append(s.queue, pending{kind: kSynth, msgs: []protocol.Message{{Type: '3'}}})
+	s.inBatch = true
+	s.mu.Unlock()
+	s.wake()
+	return s.send(c)
+}
+
