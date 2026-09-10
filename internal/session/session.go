@@ -372,3 +372,26 @@ func (s *Session) fatal(code, text string) error {
 	return errors.New(text)
 }
 
+func (s *Session) wake() {
+	select {
+	case s.poke <- struct{}{}:
+	default:
+	}
+}
+
+// send writes messages to the server. It flushes when no more client input is ready, so a pipeline goes out in one write.
+func (s *Session) send(c *pool.Conn, msgs ...protocol.Message) error {
+	for _, m := range msgs {
+		if err := c.WriteRaw(m); err != nil {
+			return fmt.Errorf("write to server: %w", err)
+		}
+	}
+	if s.rd.Buffered() > 0 {
+		return nil
+	}
+	if err := c.Flush(); err != nil {
+		return fmt.Errorf("write to server: %w", err)
+	}
+	return nil
+}
+
