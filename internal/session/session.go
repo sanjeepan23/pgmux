@@ -36,3 +36,15 @@ const (
 	kSynth
 )
 
+// pending is one request that is waiting for its response.
+type pending struct {
+	kind kind
+	// swallow means pgmux sent the request itself, so the client must not see the response.
+	swallow bool
+	stmt    string // server statement name, for kParse
+	msgs    []protocol.Message
+	rfq     bool // for kSynth: also send ReadyForQuery with the current status
+}
+
+var errTerminate = errors.New("client terminated")
+
