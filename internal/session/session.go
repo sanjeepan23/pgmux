@@ -87,3 +87,18 @@ type Session struct {
 	lastUsed  time.Time
 }
 
+func (s *Session) run() error {
+	for {
+		m, err := s.rd.ReadMessage()
+		if err != nil {
+			if errors.Is(err, protocol.ErrMessageTooLong) {
+				metrics.ErrorsTotal.WithLabelValues(metrics.ErrClientProtocol).Inc()
+			}
+			return err
+		}
+		if err := s.handle(m); err != nil {
+			return err
+		}
+	}
+}
+
