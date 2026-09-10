@@ -395,3 +395,33 @@ func (s *Session) send(c *pool.Conn, msgs ...protocol.Message) error {
 	return nil
 }
 
+// lockBackend returns the attached server and holds s.mu. It acquires a server first if none is attached.
+// The caller must queue a request or set inBatch before it unlocks, so that the relay cannot release the server.
+func (s *Session) lockBackend() (*pool.Conn, error) {
+	s.mu.Lock()
+	if s.backend != nil {
+		return s.backend, nil
+	}
+	done := s.relayDone
+	s.mu.Unlock()
+	// The previous relay can still be writing to the client. Wait for it, to keep responses in order.
+	<-done
+	c, err := s.pool.Acquire(s.ctx)
+	if err != nil {
+		if errors.Is(err, pool.ErrWaitTimeout) {
+			metrics.ErrorsTotal.WithLabelValues(metrics.ErrQueryWaitTimeout).Inc()
+			return nil, s.fatal("08P01", "query_wait_timeout")
+		}
+		return nil, s.fatal("08006", "pgmux: cannot connect to server: "+err.Error())
+	}
+	s.deferred = false
+	s.mu.Lock()
+	s.backend = c
+	s.queue = s.queue[:0]
+	s.syncParamsLocked(c)
+	s.relayStop = make(chan struct{})
+	s.relayDone = make(chan struct{})
+	go s.relay(c, s.relayStop, s.relayDone)
+	return c, nil
+}
+
