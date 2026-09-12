@@ -454,3 +454,58 @@ func (s *Session) syncParamsLocked(c *pool.Conn) {
 	s.queue = append(s.queue, pending{kind: kSync, swallow: true})
 }
 
+func quoteLiteral(v string) string {
+	q := "'" + strings.ReplaceAll(v, "'", "''") + "'"
+	if strings.Contains(v, `\`) {
+		return "E" + strings.ReplaceAll(q, `\`, `\\`)
+	}
+	return q
+}
+
+// relay forwards server messages to the client until the server is released, lost or stopped.
+func (s *Session) relay(c *pool.Conn, stop <-chan struct{}, done chan<- struct{}) {
+	defer close(done)
+	msgs := c.Msgs()
+	for {
+		var out []protocol.Message
+		var rfq bool
+		select {
+		case <-stop:
+			return
+		case <-s.poke:
+			s.mu.Lock()
+			out, rfq = s.takeSynthLocked(nil)
+		case m, ok := <-msgs:
+			if !ok {
+				s.serverLost(c)
+				return
+			}
+			s.mu.Lock()
+			out, rfq = s.processLocked(c, m)
+		}
+		detach := rfq && s.canDetachLocked()
+		if detach {
+			s.backend = nil
+			s.lastUsed = time.Now()
+		}
+		s.mu.Unlock()
+
+		for _, m := range out {
+			if err := s.wr.WriteRaw(m); err != nil {
+				s.clientLost()
+				return
+			}
+		}
+		if detach || len(msgs) == 0 {
+			if err := s.wr.Flush(); err != nil {
+				s.clientLost()
+				return
+			}
+		}
+		if detach {
+			s.pool.Release(c)
+			return
+		}
+	}
+}
+
