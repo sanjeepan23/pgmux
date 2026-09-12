@@ -509,3 +509,14 @@ func (s *Session) relay(c *pool.Conn, stop <-chan struct{}, done chan<- struct{}
 	}
 }
 
+func (s *Session) canDetachLocked() bool {
+	return s.txMode && len(s.queue) == 0 && !s.inBatch && s.txStatus == 'I'
+}
+
+func (s *Session) popLocked() pending {
+	p := s.queue[0]
+	s.queue[0] = pending{}
+	s.queue = s.queue[1:]
+	return p
+}
+
