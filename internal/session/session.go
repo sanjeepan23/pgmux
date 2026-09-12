@@ -601,3 +601,20 @@ func (s *Session) processLocked(c *pool.Conn, m protocol.Message) ([]protocol.Me
 	return out, rfq || synthRFQ
 }
 
+// completes reports if a server message of type msgType is the last response to a request of kind k.
+func completes(k kind, msgType byte) bool {
+	switch k {
+	case kParse:
+		return msgType == '1'
+	case kBind:
+		return msgType == '2'
+	case kClose:
+		return msgType == '3'
+	case kDescribe:
+		return msgType == 'T' || msgType == 'n'
+	case kExecute:
+		return msgType == 'C' || msgType == 'I' || msgType == 's'
+	}
+	return false
+}
+
