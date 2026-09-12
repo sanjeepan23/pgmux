@@ -534,3 +534,70 @@ func (s *Session) takeSynthLocked(out []protocol.Message) ([]protocol.Message, b
 	return out, rfq
 }
 
+// processLocked matches one server message to the request queue.
+// It returns the messages to send to the client, and reports if a ReadyForQuery went out.
+func (s *Session) processLocked(c *pool.Conn, m protocol.Message) ([]protocol.Message, bool) {
+	out, rfq := s.takeSynthLocked(nil)
+	var head *pending
+	if len(s.queue) > 0 {
+		head = &s.queue[0]
+	}
+	swallowing := head != nil && head.swallow && head.kind == kSync
+
+	switch m.Type {
+	case 'A': // NotificationResponse
+		out = append(out, m)
+	case 'Z': // ReadyForQuery
+		if len(m.Body) == 1 {
+			s.txStatus = m.Body[0]
+		}
+		fromClient := true
+		for len(s.queue) > 0 {
+			p := s.popLocked()
+			if p.kind == kSync {
+				fromClient = !p.swallow
+				break
+			}
+		}
+		if fromClient {
+			out = append(out, m)
+			if s.txStatus == 'I' {
+				s.transactions.Inc()
+			}
+		}
+		rfq = true
+	case 'E': // ErrorResponse
+		switch {
+		case head != nil && head.kind != kSync && head.kind != kSynth:
+			// After an error in an extended batch, the server skips all messages up to the next Sync.
+			for len(s.queue) > 0 && s.queue[0].kind != kSync {
+				if p := s.popLocked(); p.kind == kParse && p.stmt != "" {
+					delete(c.Prepared, p.stmt)
+				}
+			}
+			out = append(out, m)
+		case swallowing:
+			s.log.Warn("parameter sync failed", "err", protocol.DecodeError(m.Body))
+		default:
+			out = append(out, m)
+		}
+	case 'S': // ParameterStatus
+		if !swallowing {
+			s.trackParamLocked(m)
+			out = append(out, m)
+		}
+	default:
+		if swallowing {
+			break
+		}
+		if head != nil && completes(head.kind, m.Type) {
+			if p := s.popLocked(); p.swallow {
+				break
+			}
+		}
+		out = append(out, m)
+	}
+	out, synthRFQ := s.takeSynthLocked(out)
+	return out, rfq || synthRFQ
+}
+
