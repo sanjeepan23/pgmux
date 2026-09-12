@@ -520,3 +520,17 @@ func (s *Session) popLocked() pending {
 	return p
 }
 
+// takeSynthLocked appends the made-up responses at the head of the queue to out.
+func (s *Session) takeSynthLocked(out []protocol.Message) ([]protocol.Message, bool) {
+	rfq := false
+	for len(s.queue) > 0 && s.queue[0].kind == kSynth {
+		p := s.popLocked()
+		out = append(out, p.msgs...)
+		if p.rfq {
+			out = append(out, protocol.ReadyForQuery(s.txStatus))
+			rfq = true
+		}
+	}
+	return out, rfq
+}
+
