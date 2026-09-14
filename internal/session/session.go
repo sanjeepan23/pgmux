@@ -630,3 +630,16 @@ func (s *Session) trackParamLocked(m protocol.Message) {
 	}
 }
 
+// serverLost ends the session after the server connection fails.
+func (s *Session) serverLost(c *pool.Conn) {
+	s.log.Warn("server connection lost", "err", c.ReadErr())
+	metrics.ErrorsTotal.WithLabelValues(metrics.ErrServerLost).Inc()
+	s.mu.Lock()
+	s.backend = nil
+	s.mu.Unlock()
+	s.pool.Destroy(c)
+	_ = s.wr.WriteRaw(protocol.ErrorMessage("FATAL", "08006", "pgmux: server connection lost"))
+	_ = s.wr.Flush()
+	_ = s.conn.Close()
+}
+
