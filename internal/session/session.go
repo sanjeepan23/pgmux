@@ -618,3 +618,15 @@ func completes(k kind, msgType byte) bool {
 	return false
 }
 
+// trackParamLocked records a parameter change, so that the next server gets the same value.
+func (s *Session) trackParamLocked(m protocol.Message) {
+	var ps pgproto3.ParameterStatus
+	if ps.Decode(m.Body) != nil {
+		return
+	}
+	name := strings.ToLower(ps.Name)
+	if _, ok := s.params[name]; ok || trackedParams[name] {
+		s.params[name] = ps.Value
+	}
+}
+
