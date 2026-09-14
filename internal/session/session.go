@@ -643,3 +643,18 @@ func (s *Session) serverLost(c *pool.Conn) {
 	_ = s.conn.Close()
 }
 
+// clientLost closes the client connection, so that the client goroutine stops and cleans up.
+func (s *Session) clientLost() { _ = s.conn.Close() }
+
+// stopRelay stops the relay and waits for it to exit.
+func (s *Session) stopRelay() {
+	s.mu.Lock()
+	stop, done := s.relayStop, s.relayDone
+	s.relayStop = nil
+	s.mu.Unlock()
+	if stop != nil {
+		close(stop)
+	}
+	<-done
+}
+
