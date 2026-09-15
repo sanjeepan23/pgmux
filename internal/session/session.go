@@ -658,3 +658,35 @@ func (s *Session) stopRelay() {
 	<-done
 }
 
+// finish returns or closes the attached server after the client leaves.
+func (s *Session) finish() {
+	s.stopRelay()
+	s.mu.Lock()
+	c := s.backend
+	idle := len(s.queue) == 0 && !s.inBatch && s.txStatus == 'I'
+	s.backend = nil
+	s.mu.Unlock()
+	if c == nil {
+		return
+	}
+	if !idle {
+		// The client left in the middle of a transaction or request. Closing the server rolls it back.
+		s.pool.Destroy(c)
+		return
+	}
+	if !s.txMode {
+		if q := s.pool.Settings().ResetQuery; q != "" {
+			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			err := c.Exec(ctx, q)
+			cancel()
+			if err != nil {
+				s.log.Warn("reset query failed", "err", err)
+				s.pool.Destroy(c)
+				return
+			}
+			c.ResetState()
+		}
+	}
+	s.pool.Release(c)
+}
+
