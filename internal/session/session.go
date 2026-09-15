@@ -690,3 +690,22 @@ func (s *Session) finish() {
 	s.pool.Release(c)
 }
 
+// closeIfIdle closes the client if no server is attached. It reports if it closed the client.
+func (s *Session) closeIfIdle() bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.backend != nil || len(s.queue) > 0 || s.inBatch {
+		return false
+	}
+	select {
+	case <-s.relayDone:
+	default:
+		return false
+	}
+	_ = s.conn.SetWriteDeadline(time.Now().Add(time.Second))
+	_ = s.wr.WriteRaw(protocol.ErrorMessage("FATAL", "57P01", "pgmux is shutting down"))
+	_ = s.wr.Flush()
+	_ = s.conn.Close()
+	return true
+}
+
