@@ -725,3 +725,21 @@ func (s *Session) cancel() {
 	}
 }
 
+func (s *Session) checkFeatures(sql string) {
+	for _, f := range sessionFeatures(sql) {
+		metrics.SessionFeatureWarnings.WithLabelValues(f).Inc()
+		if !s.warned[f] {
+			s.warned[f] = true
+			s.log.Warn("session-level feature used in transaction pooling mode", "feature", f)
+		}
+	}
+}
+
+func cstr(b []byte) string {
+	for i, c := range b {
+		if c == 0 {
+			return string(b[:i])
+		}
+	}
+	return string(b)
+}
