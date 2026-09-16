@@ -709,3 +709,19 @@ func (s *Session) closeIfIdle() bool {
 	return true
 }
 
+// cancel forwards a cancel request to the server that serves this client now.
+func (s *Session) cancel() {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	// Holding the lock keeps the server attached to this client while the cancel goes out.
+	if s.backend == nil || len(s.queue) == 0 {
+		return
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	if err := s.srv.Manager.Dialer().Cancel(ctx, s.backend.PID, s.backend.Secret); err != nil {
+		metrics.ErrorsTotal.WithLabelValues(metrics.ErrCancel).Inc()
+		s.log.Warn("cancel request failed", "err", err)
+	}
+}
+
