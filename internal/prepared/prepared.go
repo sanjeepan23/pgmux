@@ -36,3 +36,15 @@ func ServerName(query string, paramOIDs []uint32) string {
 	return Prefix + hex.EncodeToString(h.Sum(nil)[:12])
 }
 
+// NewStatement builds a Statement from a decoded client Parse message.
+func NewStatement(p *pgproto3.Parse) (*Statement, error) {
+	name := ServerName(p.Query, p.ParameterOIDs)
+	renamed := *p
+	renamed.Name = name
+	msg, err := protocol.Encode(&renamed)
+	if err != nil {
+		return nil, err
+	}
+	return &Statement{ServerName: name, Parse: msg}, nil
+}
+
