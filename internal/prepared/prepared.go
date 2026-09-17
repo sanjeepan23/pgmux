@@ -87,3 +87,19 @@ func RenameBind(body []byte, stmt string) ([]byte, error) {
 	return append(out, rest...), nil
 }
 
+// Target returns the object type ('S' or 'P') and name in a Describe or Close body.
+func Target(body []byte) (byte, string, error) {
+	if len(body) < 2 {
+		return 0, "", errMalformed
+	}
+	name, _, err := cstring(body[1:])
+	return body[0], name, err
+}
+
+// RenameTarget returns a Describe or Close body for the given object type and name.
+func RenameTarget(objType byte, name string) []byte {
+	out := make([]byte, 0, len(name)+2)
+	out = append(out, objType)
+	out = append(out, name...)
+	return append(out, 0)
+}
