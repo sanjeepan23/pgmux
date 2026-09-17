@@ -20,3 +20,17 @@ func TestServerName(t *testing.T) {
 	}
 }
 
+func TestNewStatementRenames(t *testing.T) {
+	st, err := NewStatement(&pgproto3.Parse{Name: "client_name", Query: "SELECT 1", ParameterOIDs: []uint32{}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var p pgproto3.Parse
+	if err := p.Decode(st.Parse.Body); err != nil {
+		t.Fatal(err)
+	}
+	if p.Name != st.ServerName || p.Query != "SELECT 1" {
+		t.Fatalf("renamed parse = %+v", p)
+	}
+}
+
