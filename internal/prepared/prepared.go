@@ -48,3 +48,14 @@ func NewStatement(p *pgproto3.Parse) (*Statement, error) {
 	return &Statement{ServerName: name, Parse: msg}, nil
 }
 
+var errMalformed = errors.New("prepared: malformed message")
+
+// cstring returns the NUL-terminated string at the start of b and the rest after the NUL.
+func cstring(b []byte) (string, []byte, error) {
+	i := bytes.IndexByte(b, 0)
+	if i < 0 {
+		return "", nil, errMalformed
+	}
+	return string(b[:i]), b[i+1:], nil
+}
+
