@@ -34,3 +34,23 @@ func TestNewStatementRenames(t *testing.T) {
 	}
 }
 
+func TestRenameBind(t *testing.T) {
+	orig := &pgproto3.Bind{DestinationPortal: "p1", PreparedStatement: "s1", Parameters: [][]byte{[]byte("x"), nil}, ResultFormatCodes: []int16{1}}
+	b, _ := orig.Encode(nil)
+	body := b[5:]
+	if name, err := BindStatement(body); err != nil || name != "s1" {
+		t.Fatalf("BindStatement = %q, %v", name, err)
+	}
+	renamed, err := RenameBind(body, "pgmux_abc")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var got pgproto3.Bind
+	if err := got.Decode(renamed); err != nil {
+		t.Fatal(err)
+	}
+	if got.PreparedStatement != "pgmux_abc" || got.DestinationPortal != "p1" || string(got.Parameters[0]) != "x" || got.Parameters[1] != nil {
+		t.Fatalf("renamed bind = %+v", got)
+	}
+}
+
