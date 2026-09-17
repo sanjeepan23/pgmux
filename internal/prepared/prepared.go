@@ -59,3 +59,31 @@ func cstring(b []byte) (string, []byte, error) {
 	return string(b[:i]), b[i+1:], nil
 }
 
+// BindStatement returns the statement name in a Bind body.
+func BindStatement(body []byte) (string, error) {
+	_, rest, err := cstring(body)
+	if err != nil {
+		return "", err
+	}
+	name, _, err := cstring(rest)
+	return name, err
+}
+
+// RenameBind returns a copy of a Bind body with a new statement name.
+func RenameBind(body []byte, stmt string) ([]byte, error) {
+	portal, rest, err := cstring(body)
+	if err != nil {
+		return nil, err
+	}
+	_, rest, err = cstring(rest)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]byte, 0, len(portal)+len(stmt)+2+len(rest))
+	out = append(out, portal...)
+	out = append(out, 0)
+	out = append(out, stmt...)
+	out = append(out, 0)
+	return append(out, rest...), nil
+}
+
