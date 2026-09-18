@@ -54,3 +54,16 @@ func TestRenameBind(t *testing.T) {
 	}
 }
 
+func TestTarget(t *testing.T) {
+	typ, name, err := Target([]byte("Sstmt\x00"))
+	if err != nil || typ != 'S' || name != "stmt" {
+		t.Fatalf("Target = %c %q %v", typ, name, err)
+	}
+	if string(RenameTarget('S', "x")) != "Sx\x00" {
+		t.Fatal("RenameTarget output is wrong")
+	}
+	if _, _, err := Target([]byte("S")); err == nil {
+		t.Fatal("short body accepted")
+	}
+}
+
