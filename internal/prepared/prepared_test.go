@@ -67,3 +67,16 @@ func TestTarget(t *testing.T) {
 	}
 }
 
+func FuzzRename(f *testing.F) {
+	b, _ := (&pgproto3.Bind{PreparedStatement: "s"}).Encode(nil)
+	f.Add(b[5:])
+	f.Add([]byte("Sname\x00"))
+	f.Fuzz(func(t *testing.T, body []byte) {
+		if out, err := RenameBind(body, "n"); err == nil {
+			if name, err := BindStatement(out); err != nil || name != "n" {
+				t.Fatalf("rename lost the name: %q %v", name, err)
+			}
+		}
+		_, _, _ = Target(body)
+	})
+}
