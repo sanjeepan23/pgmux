@@ -85,3 +85,18 @@ func (a *Server) write(h http.HandlerFunc) http.HandlerFunc {
 	}
 }
 
+func (a *Server) stats() Stats {
+	s := Stats{Version: a.Version, UptimeSeconds: time.Since(a.started).Seconds(), Clients: a.Clients()}
+	for _, p := range a.Manager.Pools() {
+		ps := p.Stats()
+		s.Pools++
+		s.ClientsWaiting += ps.ClientsWaiting
+		s.ServersActive += ps.ServersActive
+		s.ServersIdle += ps.ServersIdle
+	}
+	s.QueriesTotal = sumCounter("pgmux_queries_total")
+	s.TxTotal = sumCounter("pgmux_transactions_total")
+	s.ErrorsTotal = sumCounter("pgmux_errors_total")
+	return s
+}
+
