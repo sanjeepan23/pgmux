@@ -94,3 +94,19 @@ func isSessionSet(words []string) bool {
 	return !trackedParams[name]
 }
 
+// isListen reports if any statement in sql is LISTEN.
+func isListen(sql string) bool {
+	for _, f := range sessionFeatures(sql) {
+		if f == featListen {
+			return true
+		}
+	}
+	return false
+}
+
+// resetsState reports if sql resets session state, such as DISCARD ALL or DEALLOCATE ALL.
+func resetsState(sql string) bool {
+	s := strings.ToLower(strings.Join(strings.Fields(sql), " "))
+	return strings.Contains(s, "discard all") || strings.Contains(s, "deallocate all") ||
+		strings.Contains(s, "discard plans") || strings.Contains(s, "deallocate prepare all")
+}
