@@ -82,3 +82,19 @@ type poolCollector struct {
 	descs map[string]*prometheus.Desc
 }
 
+var poolSource atomic.Pointer[func() []PoolStat]
+
+var poolGauges = []struct{ name, help string }{
+	{"clients_active", "Clients connected to the pool."},
+	{"clients_waiting", "Clients waiting for a server connection."},
+	{"servers_active", "Server connections in use by a client."},
+	{"servers_idle", "Idle server connections."},
+	{"pool_max_size", "Maximum server connections for the pool."},
+}
+
+func (c *poolCollector) Describe(ch chan<- *prometheus.Desc) {
+	for _, d := range c.descs {
+		ch <- d
+	}
+}
+
