@@ -68,3 +68,17 @@ var (
 	}, []string{"feature"})
 )
 
+// PoolStat is a snapshot of one pool for the pool gauges.
+type PoolStat struct {
+	User, Database, Mode string
+	ClientsActive        int
+	ClientsWaiting       int
+	ServersActive        int
+	ServersIdle          int
+	MaxSize              int
+}
+
+type poolCollector struct {
+	descs map[string]*prometheus.Desc
+}
+
