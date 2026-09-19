@@ -53,3 +53,16 @@ func TestResetsState(t *testing.T) {
 	}
 }
 
+func TestQuoteLiteral(t *testing.T) {
+	for in, want := range map[string]string{
+		"UTC":   "'UTC'",
+		"it's":  "'it''s'",
+		`a\b`:   `E'a\\b'`,
+		`a'\'b`: `E'a''\\''b'`,
+	} {
+		if got := quoteLiteral(in); got != want {
+			t.Errorf("quoteLiteral(%q) = %s, want %s", in, got, want)
+		}
+	}
+}
+
