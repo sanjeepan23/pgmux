@@ -98,3 +98,22 @@ func (c *poolCollector) Describe(ch chan<- *prometheus.Desc) {
 	}
 }
 
+func (c *poolCollector) Collect(ch chan<- prometheus.Metric) {
+	src := poolSource.Load()
+	if src == nil {
+		return
+	}
+	for _, s := range (*src)() {
+		vals := map[string]int{
+			"clients_active":  s.ClientsActive,
+			"clients_waiting": s.ClientsWaiting,
+			"servers_active":  s.ServersActive,
+			"servers_idle":    s.ServersIdle,
+			"pool_max_size":   s.MaxSize,
+		}
+		for name, v := range vals {
+			ch <- prometheus.MustNewConstMetric(c.descs[name], prometheus.GaugeValue, float64(v), s.User, s.Database, s.Mode)
+		}
+	}
+}
+
