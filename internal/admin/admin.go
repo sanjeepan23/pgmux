@@ -117,3 +117,24 @@ func sumCounter(name string) float64 {
 	return total
 }
 
+func (a *Server) pools() []pool.Stats {
+	pools := a.Manager.Pools()
+	out := make([]pool.Stats, 0, len(pools))
+	for _, p := range pools {
+		out = append(out, p.Stats())
+	}
+	return out
+}
+
+// matching returns the pools that match the optional user and db query parameters.
+func (a *Server) matching(r *http.Request) []*pool.Pool {
+	user, db := r.URL.Query().Get("user"), r.URL.Query().Get("db")
+	var out []*pool.Pool
+	for _, p := range a.Manager.Pools() {
+		if (user == "" || p.Key.User == user) && (db == "" || p.Key.Database == db) {
+			out = append(out, p)
+		}
+	}
+	return out
+}
+
