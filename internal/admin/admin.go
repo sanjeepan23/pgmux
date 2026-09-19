@@ -28,3 +28,17 @@ type Server struct {
 	started time.Time
 }
 
+// Stats is the response of GET /stats.
+type Stats struct {
+	Version        string  `json:"version"`
+	UptimeSeconds  float64 `json:"uptime_seconds"`
+	Clients        int     `json:"clients"`
+	ClientsWaiting int     `json:"clients_waiting"`
+	ServersActive  int     `json:"servers_active"`
+	ServersIdle    int     `json:"servers_idle"`
+	Pools          int     `json:"pools"`
+	QueriesTotal   float64 `json:"queries_total"`
+	TxTotal        float64 `json:"transactions_total"`
+	ErrorsTotal    float64 `json:"errors_total"`
+}
+
