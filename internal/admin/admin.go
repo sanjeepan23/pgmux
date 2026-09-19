@@ -158,3 +158,19 @@ func (a *Server) pause(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, map[string]any{"paused": len(pools), "drained": drained})
 }
 
+func (a *Server) resume(w http.ResponseWriter, r *http.Request) {
+	pools := a.matching(r)
+	for _, p := range pools {
+		p.Resume()
+	}
+	writeJSON(w, map[string]any{"resumed": len(pools)})
+}
+
+func (a *Server) reload(w http.ResponseWriter, r *http.Request) {
+	if err := a.Reload(); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	writeJSON(w, map[string]any{"reloaded": true})
+}
+
