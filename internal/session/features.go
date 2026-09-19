@@ -26,3 +26,43 @@ var trackedParams = map[string]bool{
 	"standard_conforming_strings": true,
 }
 
+var (
+	advisoryLockRe = regexp.MustCompile(`(?i)\bpg_(try_)?advisory_lock(_shared)?\s*\(`)
+	holdCursorRe   = regexp.MustCompile(`(?i)^\s*declare\b.*\bwith\s+hold\b`)
+	tempTableRe    = regexp.MustCompile(`(?i)^\s*create\s+(global\s+|local\s+)?(temp|temporary)\s+(table|view|sequence)\b`)
+)
+
+// sessionFeatures returns the session-level features that sql uses.
+// It splits on ';' without a full parser, so it can miss cases or report false matches.
+func sessionFeatures(sql string) []string {
+	var out []string
+	if advisoryLockRe.MatchString(sql) {
+		out = append(out, featAdvisoryLock)
+	}
+	for _, stmt := range strings.Split(sql, ";") {
+		words := strings.Fields(strings.ToLower(stmt))
+		if len(words) == 0 {
+			continue
+		}
+		switch words[0] {
+		case "set":
+			if isSessionSet(words[1:]) {
+				out = append(out, featSet)
+			}
+		case "listen":
+			out = append(out, featListen)
+		case "prepare":
+			out = append(out, featPrepare)
+		case "create":
+			if tempTableRe.MatchString(stmt) {
+				out = append(out, featTempTable)
+			}
+		case "declare":
+			if holdCursorRe.MatchString(stmt) {
+				out = append(out, featHoldCursor)
+			}
+		}
+	}
+	return out
+}
+
