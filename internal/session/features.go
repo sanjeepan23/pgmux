@@ -66,3 +66,31 @@ func sessionFeatures(sql string) []string {
 	return out
 }
 
+// isSessionSet reports if the words after SET change session state that pgmux does not track.
+func isSessionSet(words []string) bool {
+	if len(words) == 0 {
+		return false
+	}
+	switch words[0] {
+	case "local", "transaction", "constraints":
+		return false
+	case "session":
+		words = words[1:]
+		if len(words) == 0 {
+			return true
+		}
+		if words[0] == "characteristics" {
+			return true
+		}
+	}
+	name := strings.TrimRight(strings.SplitN(words[0], "=", 2)[0], " ")
+	name = strings.Trim(name, `"`)
+	if name == "time" && len(words) > 1 && words[1] == "zone" {
+		return false
+	}
+	if name == "names" {
+		return false // SET NAMES sets client_encoding
+	}
+	return !trackedParams[name]
+}
+
