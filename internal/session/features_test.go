@@ -39,3 +39,17 @@ func TestSessionFeatures(t *testing.T) {
 	}
 }
 
+func TestResetsState(t *testing.T) {
+	for sql, want := range map[string]bool{
+		"DISCARD ALL":     true,
+		"discard   all":   true,
+		"DEALLOCATE ALL":  true,
+		"SELECT 1":        false,
+		"DEALLOCATE stmt": false,
+	} {
+		if got := resetsState(sql); got != want {
+			t.Errorf("resetsState(%q) = %v", sql, got)
+		}
+	}
+}
+
