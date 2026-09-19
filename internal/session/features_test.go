@@ -66,3 +66,17 @@ func TestQuoteLiteral(t *testing.T) {
 	}
 }
 
+func TestCompletes(t *testing.T) {
+	if !completes(kParse, '1') || completes(kParse, '2') {
+		t.Fatal("Parse completion is wrong")
+	}
+	if !completes(kDescribe, 'n') || !completes(kDescribe, 'T') || completes(kDescribe, 't') {
+		t.Fatal("Describe completion is wrong")
+	}
+	if !completes(kExecute, 's') || completes(kExecute, 'D') {
+		t.Fatal("Execute completion is wrong")
+	}
+	if completes(kSync, 'C') {
+		t.Fatal("a simple query must end only at ReadyForQuery")
+	}
+}
