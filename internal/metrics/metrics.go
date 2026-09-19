@@ -117,3 +117,18 @@ func (c *poolCollector) Collect(ch chan<- prometheus.Metric) {
 	}
 }
 
+// SetPoolSource sets the function that the pool gauges call at scrape time.
+func SetPoolSource(source func() []PoolStat) { poolSource.Store(&source) }
+
+func init() {
+	pc := &poolCollector{descs: map[string]*prometheus.Desc{}}
+	for _, g := range poolGauges {
+		pc.descs[g.name] = prometheus.NewDesc("pgmux_"+g.name, g.help, []string{"user", "database", "mode"}, nil)
+	}
+	Registry.MustRegister(pc,
+		AcquireWait, QueriesTotal, TransactionsTotal, ErrorsTotal,
+		ClientConnectionsTotal, ServerConnectionsTotal, SessionFeatureWarnings,
+		collectors.NewGoCollector(),
+		collectors.NewProcessCollector(collectors.ProcessCollectorOpts{}),
+	)
+}
