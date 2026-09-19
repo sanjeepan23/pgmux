@@ -65,3 +65,25 @@ func (l *Listener) Serve(ctx context.Context) error {
 	}
 }
 
+func isTemporary(err error) bool {
+	var t interface{ Temporary() bool }
+	return errors.As(err, &t) && t.Temporary()
+}
+
+// Close stops accepting new connections. Open connections keep running.
+func (l *Listener) Close() error { return l.ln.Close() }
+
+// Wait blocks until all handlers return or ctx ends. It reports if all handlers returned.
+func (l *Listener) Wait(ctx context.Context) bool {
+	done := make(chan struct{})
+	go func() {
+		l.wg.Wait()
+		close(done)
+	}()
+	select {
+	case <-done:
+		return true
+	case <-ctx.Done():
+		return false
+	}
+}
