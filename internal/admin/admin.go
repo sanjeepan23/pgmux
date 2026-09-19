@@ -138,3 +138,23 @@ func (a *Server) matching(r *http.Request) []*pool.Pool {
 	return out
 }
 
+func (a *Server) pause(w http.ResponseWriter, r *http.Request) {
+	timeout := 30 * time.Second
+	if t := r.URL.Query().Get("timeout"); t != "" {
+		d, err := time.ParseDuration(t)
+		if err != nil {
+			http.Error(w, "bad timeout: "+err.Error(), http.StatusBadRequest)
+			return
+		}
+		timeout = d
+	}
+	ctx, cancel := context.WithTimeout(r.Context(), timeout)
+	defer cancel()
+	pools := a.matching(r)
+	for _, p := range pools {
+		_ = p.Pause(ctx)
+	}
+	drained := ctx.Err() == nil
+	writeJSON(w, map[string]any{"paused": len(pools), "drained": drained})
+}
+
