@@ -29,3 +29,39 @@ func Listen(addr string, h Handler) (*Listener, error) {
 	return &Listener{ln: ln, handler: h}, nil
 }
 
+// Addr returns the listen address.
+func (l *Listener) Addr() net.Addr { return l.ln.Addr() }
+
+// Serve accepts connections until Close. It returns nil after Close.
+func (l *Listener) Serve(ctx context.Context) error {
+	var backoff time.Duration
+	for {
+		conn, err := l.ln.Accept()
+		if err != nil {
+			if errors.Is(err, net.ErrClosed) {
+				return nil
+			}
+			// Back off on errors such as "too many open files", so the loop does not spin.
+			var ne net.Error
+			if errors.As(err, &ne) && ne.Timeout() || isTemporary(err) {
+				backoff = min(max(backoff*2, 5*time.Millisecond), time.Second)
+				slog.Warn("accept failed", "err", err, "retry_in", backoff)
+				time.Sleep(backoff)
+				continue
+			}
+			return err
+		}
+		backoff = 0
+		if tc, ok := conn.(*net.TCPConn); ok {
+			_ = tc.SetNoDelay(true)
+			_ = tc.SetKeepAlive(true)
+			_ = tc.SetKeepAlivePeriod(30 * time.Second)
+		}
+		l.wg.Add(1)
+		go func() {
+			defer l.wg.Done()
+			l.handler(ctx, conn)
+		}()
+	}
+}
+
