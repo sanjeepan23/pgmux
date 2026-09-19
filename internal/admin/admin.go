@@ -100,3 +100,20 @@ func (a *Server) stats() Stats {
 	return s
 }
 
+func sumCounter(name string) float64 {
+	families, err := metrics.Registry.Gather()
+	if err != nil {
+		return 0
+	}
+	var total float64
+	for _, f := range families {
+		if f.GetName() != name {
+			continue
+		}
+		for _, m := range f.GetMetric() {
+			total += m.GetCounter().GetValue()
+		}
+	}
+	return total
+}
+
