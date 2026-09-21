@@ -200,3 +200,25 @@ func (a *Server) events(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+func writeJSON(w http.ResponseWriter, v any) {
+	w.Header().Set("Content-Type", "application/json")
+	enc := json.NewEncoder(w)
+	enc.SetIndent("", "  ")
+	_ = enc.Encode(v)
+}
+
+// Serve serves the admin API on ln until ctx ends.
+func (a *Server) Serve(ctx context.Context, ln net.Listener) error {
+	srv := &http.Server{Handler: a.Handler(), ReadHeaderTimeout: 10 * time.Second}
+	go func() {
+		<-ctx.Done()
+		sctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+		defer cancel()
+		_ = srv.Shutdown(sctx)
+	}()
+	err := srv.Serve(ln)
+	if err == http.ErrServerClosed {
+		return nil
+	}
+	return err
+}
