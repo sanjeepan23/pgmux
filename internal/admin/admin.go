@@ -174,3 +174,29 @@ func (a *Server) reload(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, map[string]any{"reloaded": true})
 }
 
+// events streams stats and pools once a second as Server-Sent Events.
+func (a *Server) events(w http.ResponseWriter, r *http.Request) {
+	flusher, ok := w.(http.Flusher)
+	if !ok {
+		http.Error(w, "streaming not supported", http.StatusInternalServerError)
+		return
+	}
+	w.Header().Set("Content-Type", "text/event-stream")
+	w.Header().Set("Cache-Control", "no-cache")
+	w.Header().Set("Connection", "keep-alive")
+	t := time.NewTicker(time.Second)
+	defer t.Stop()
+	for {
+		b, _ := json.Marshal(map[string]any{"time": time.Now().UnixMilli(), "stats": a.stats(), "pools": a.pools()})
+		if _, err := fmt.Fprintf(w, "data: %s\n\n", b); err != nil {
+			return
+		}
+		flusher.Flush()
+		select {
+		case <-r.Context().Done():
+			return
+		case <-t.C:
+		}
+	}
+}
+
