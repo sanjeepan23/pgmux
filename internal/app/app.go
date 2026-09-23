@@ -155,3 +155,23 @@ func (a *App) Reload() error {
 	return nil
 }
 
+// Shutdown stops accepting clients and closes idle clients as their transactions end.
+// After timeout, it closes all remaining clients.
+func (a *App) Shutdown(timeout time.Duration) {
+	_ = a.ln.Close()
+	deadline := time.Now().Add(timeout)
+	for time.Now().Before(deadline) {
+		if a.Server.CloseIdle() == 0 {
+			break
+		}
+		time.Sleep(50 * time.Millisecond)
+	}
+	a.Server.CloseAll()
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	if !a.ln.Wait(ctx) {
+		slog.Warn("some client goroutines did not stop")
+	}
+	a.Manager.Close()
+	a.cancel()
+}
