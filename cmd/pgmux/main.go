@@ -15,3 +15,21 @@ import (
 // version is set at build time with -ldflags "-X main.version=...".
 var version = "dev"
 
+func main() {
+	configPath := flag.String("config", "pgmux.yaml", "path to the YAML config file")
+	logLevel := flag.String("log-level", "info", "log level: debug, info, warn or error")
+	logFormat := flag.String("log-format", "text", "log format: text or json")
+	showVersion := flag.Bool("version", false, "print the version and exit")
+	flag.Parse()
+
+	if *showVersion {
+		fmt.Println("pgmux", version)
+		return
+	}
+	setupLogging(*logLevel, *logFormat)
+	if err := run(*configPath); err != nil {
+		slog.Error("pgmux failed", "err", err)
+		os.Exit(1)
+	}
+}
+
