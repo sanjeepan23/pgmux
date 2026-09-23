@@ -68,3 +68,55 @@ func load(path string) (*loaded, error) {
 	return l, nil
 }
 
+// Start loads the config, opens the listeners and starts serving.
+func Start(configPath, version string) (*App, error) {
+	l, err := load(configPath)
+	if err != nil {
+		return nil, err
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	a := &App{configPath: configPath, version: version, cfg: l.cfg, cancel: cancel, serveErr: make(chan error, 1)}
+
+	a.Manager = pool.NewManager(l.cfg, l.dialer)
+	metrics.SetPoolSource(a.Manager.MetricStats)
+	go a.Manager.Run(ctx)
+
+	a.Server = session.NewServer(l.cfg, l.creds, l.tls, a.Manager)
+	if a.ln, err = listener.Listen(l.cfg.Listen, a.Server.Serve); err != nil {
+		cancel()
+		return nil, err
+	}
+
+	if l.cfg.AdminListen != "" {
+		if a.adminLn, err = net.Listen("tcp", l.cfg.AdminListen); err != nil {
+			_ = a.ln.Close()
+			cancel()
+			return nil, fmt.Errorf("admin listen: %w", err)
+		}
+		adm := &admin.Server{
+			Manager:      a.Manager,
+			Clients:      a.Server.ClientCount,
+			Reload:       a.Reload,
+			ReadOnly:     l.cfg.AdminReadOnly,
+			DashboardDir: l.cfg.Resolve(l.cfg.DashboardDir),
+			Version:      version,
+		}
+		go func() {
+			if err := adm.Serve(ctx, a.adminLn); err != nil {
+				slog.Error("admin API failed", "err", err)
+			}
+		}()
+	}
+
+	files := []string{configPath}
+	if l.cfg.Auth.Userlist != "" {
+		files = append(files, l.cfg.Resolve(l.cfg.Auth.Userlist))
+	}
+	if err := config.Watch(ctx, files, func() { _ = a.Reload() }); err != nil {
+		slog.Warn("config hot reload is off", "err", err)
+	}
+
+	go func() { a.serveErr <- a.ln.Serve(ctx) }()
+	return a, nil
+}
+
