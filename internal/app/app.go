@@ -131,3 +131,27 @@ func (a *App) AdminAddr() string {
 	return a.adminLn.Addr().String()
 }
 
+// Config returns the config that the app started with.
+func (a *App) Config() *config.Config { return a.cfg }
+
+// Err returns a channel that receives an error if the accept loop fails.
+func (a *App) Err() <-chan error { return a.serveErr }
+
+// Reload loads the config files again and applies them. On error, the old config stays.
+func (a *App) Reload() error {
+	a.reloadMu.Lock()
+	defer a.reloadMu.Unlock()
+	next, err := load(a.configPath)
+	if err != nil {
+		slog.Error("config reload failed, keeping the old config", "err", err)
+		return err
+	}
+	if next.cfg.Listen != a.cfg.Listen || next.cfg.AdminListen != a.cfg.AdminListen {
+		slog.Warn("listen address changes need a restart")
+	}
+	a.Manager.Reload(next.cfg, next.dialer)
+	a.Server.Reload(next.cfg, next.creds, next.tls)
+	slog.Info("config reloaded")
+	return nil
+}
+
