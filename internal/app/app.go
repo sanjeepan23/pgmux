@@ -120,3 +120,14 @@ func Start(configPath, version string) (*App, error) {
 	return a, nil
 }
 
+// Addr returns the client listen address.
+func (a *App) Addr() string { return a.ln.Addr().String() }
+
+// AdminAddr returns the admin listen address, or "" when the admin API is off.
+func (a *App) AdminAddr() string {
+	if a.adminLn == nil {
+		return ""
+	}
+	return a.adminLn.Addr().String()
+}
+
