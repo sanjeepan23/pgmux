@@ -46,3 +46,28 @@ func setupLogging(level, format string) {
 	slog.SetDefault(slog.New(h))
 }
 
+func run(configPath string) error {
+	a, err := app.Start(configPath, version)
+	if err != nil {
+		return err
+	}
+	cfg := a.Config()
+	slog.Info("pgmux listening", "addr", a.Addr(), "admin", a.AdminAddr(), "version", version, "pool_mode", cfg.PoolMode)
+
+	sigs := make(chan os.Signal, 1)
+	signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM, syscall.SIGHUP)
+	for {
+		select {
+		case err := <-a.Err():
+			return err
+		case sig := <-sigs:
+			if sig == syscall.SIGHUP {
+				_ = a.Reload()
+				continue
+			}
+			slog.Info("shutting down", "signal", sig.String(), "timeout", cfg.ShutdownTimeout.String())
+			a.Shutdown(cfg.ShutdownTimeout.Duration)
+			return nil
+		}
+	}
+}
