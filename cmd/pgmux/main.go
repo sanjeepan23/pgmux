@@ -33,3 +33,16 @@ func main() {
 	}
 }
 
+func setupLogging(level, format string) {
+	var lv slog.Level
+	if err := lv.UnmarshalText([]byte(level)); err != nil {
+		lv = slog.LevelInfo
+	}
+	opts := &slog.HandlerOptions{Level: lv}
+	var h slog.Handler = slog.NewTextHandler(os.Stderr, opts)
+	if format == "json" {
+		h = slog.NewJSONHandler(os.Stderr, opts)
+	}
+	slog.SetDefault(slog.New(h))
+}
+
