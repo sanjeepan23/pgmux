@@ -1,0 +1,47 @@
+# pgmux config for local development. Relative paths resolve against this file's folder.
+listen: 127.0.0.1:6432
+admin_listen: 127.0.0.1:9930
+dashboard_dir: dashboard/dist
+pool_mode: transaction
+shutdown_timeout: 10s
+max_client_conn: 10000
+
+server:
+  host: localhost
+  port: 5432
+  sslmode: verify-full
+  sslrootcert: deploy/certs/ca.crt
+  connect_timeout: 5s
+
+client_tls:
+  cert_file: deploy/certs/server.crt
+  key_file: deploy/certs/server.key
+  required: false
+
+auth:
+  method: scram-sha-256
+  userlist: deploy/userlist.txt
+  auth_user: pgmux_auth
+  auth_query: SELECT usename, passwd FROM public.pgmux_lookup($1)
+  auth_dbname: postgres
+
+pool:
+  default_size: 20
+  min_size: 0
+  idle_timeout: 10m
+  max_lifetime: 1h
+  query_wait_timeout: 30s
+  health_check_period: 30s
+  reset_query: DISCARD ALL
+
+databases:
+  appdb:
+    pool_size: 25
+  sessiondb:
+    dbname: appdb
+    pool_mode: session
+    pool_size: 20
+
+users:
+  app:
+    max_connections: 5000
