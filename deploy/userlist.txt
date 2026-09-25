@@ -1,0 +1,5 @@
+; PgBouncer-style userlist: "user" "password or hash". Development values only.
+"app" "app"
+"md5user" "md5pass"
+"pgmux_auth" "pgmux_auth"
+"postgres" "postgres"
