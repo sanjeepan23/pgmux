@@ -25,3 +25,23 @@ auth:
   auth_query: SELECT usename, passwd FROM public.pgmux_lookup($1)
   auth_dbname: postgres
 
+pool:
+  default_size: 20
+  min_size: 0
+  idle_timeout: 10m
+  max_lifetime: 1h
+  query_wait_timeout: 30s
+  health_check_period: 30s
+  reset_query: DISCARD ALL
+
+databases:
+  appdb:
+    pool_size: 25
+  sessiondb:
+    dbname: appdb
+    pool_mode: session
+    pool_size: 20
+
+users:
+  app:
+    max_connections: 5000
