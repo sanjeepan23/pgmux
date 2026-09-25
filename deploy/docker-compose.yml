@@ -1,0 +1,59 @@
+# Local stack: Postgres 16 with TLS, and pgmux in front of it.
+# Run deploy/certs/gen.sh once before the first start.
+name: pgmux
+
+services:
+  postgres:
+    image: postgres:${PG_VERSION:-16}
+    environment:
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_HOST_AUTH_METHOD: md5
+      POSTGRES_INITDB_ARGS: --auth-host=scram-sha-256
+    ports:
+      - "5432:5432"
+    volumes:
+      - ./initdb:/docker-entrypoint-initdb.d:ro
+      - ./certs:/certs:ro
+    # Postgres refuses a key file that other users can read, so copy it with strict permissions.
+    entrypoint:
+      - bash
+      - -c
+      - >-
+        install -o postgres -g postgres -m 600 /certs/server.key /tmp/server.key &&
+        install -o postgres -g postgres -m 644 /certs/server.crt /tmp/server.crt &&
+        exec docker-entrypoint.sh postgres -c ssl=on -c ssl_cert_file=/tmp/server.crt
+        -c ssl_key_file=/tmp/server.key -c max_connections=200
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+
+  pgmux:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile
+    command: ["-config", "/etc/pgmux/pgmux.yaml"]
+    ports:
+      - "6432:6432"
+      - "9930:9930"
+    volumes:
+      - ./pgmux.docker.yaml:/etc/pgmux/pgmux.yaml:ro
+      - ./userlist.txt:/etc/pgmux/userlist.txt:ro
+      - ./certs:/etc/pgmux/certs:ro
+    depends_on:
+      postgres:
+        condition: service_healthy
+    profiles: ["pgmux"]
+
+  pgbouncer:
+    image: edoburu/pgbouncer:v1.24.1-p1
+    volumes:
+      - ../bench/pgbouncer.ini:/etc/pgbouncer/pgbouncer.ini:ro
+      - ./userlist.txt:/etc/pgbouncer/userlist.txt:ro
+    ports:
+      - "6433:6433"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    profiles: ["bench"]
