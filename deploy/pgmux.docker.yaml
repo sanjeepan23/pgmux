@@ -13,3 +13,15 @@ server:
   sslrootcert: certs/ca.crt
   connect_timeout: 5s
 
+client_tls:
+  cert_file: certs/server.crt
+  key_file: certs/server.key
+  required: false
+
+auth:
+  method: scram-sha-256
+  userlist: userlist.txt
+  auth_user: pgmux_auth
+  auth_query: SELECT usename, passwd FROM public.pgmux_lookup($1)
+  auth_dbname: postgres
+
