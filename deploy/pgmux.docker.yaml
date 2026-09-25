@@ -1,0 +1,15 @@
+# pgmux config for the Docker Compose stack.
+listen: 0.0.0.0:6432
+admin_listen: 0.0.0.0:9930
+dashboard_dir: /usr/share/pgmux/dashboard
+pool_mode: transaction
+shutdown_timeout: 10s
+max_client_conn: 10000
+
+server:
+  host: postgres
+  port: 5432
+  sslmode: verify-full
+  sslrootcert: certs/ca.crt
+  connect_timeout: 5s
+
