@@ -98,3 +98,16 @@ pgmux logs a warning and counts `pgmux_session_feature_warnings_total` for a non
 other parameters, `PREPARE`, temporary tables, session advisory locks and `WITH HOLD` cursors.
 pgmux rejects `LISTEN` in transaction mode with a clear error. `LISTEN` works in session mode.
 
+## Configuration
+
+See [pgmux.example.yaml](pgmux.example.yaml) for every setting and its default. pgmux reloads the
+config file and the userlist when they change, on `SIGHUP`, and on `POST /reload`. Pool sizes,
+timeouts, users and TLS certificates change without a restart. Listen addresses need a restart.
+
+The userlist uses the PgBouncer format: `"user" "secret"`. The secret can be a plaintext password,
+an MD5 hash, or a SCRAM secret. pgmux needs one of these to log in to Postgres:
+
+- a plaintext password or an MD5 hash, or
+- a SCRAM secret. Then pgmux reuses the SCRAM proof of the first client that logs in, so no
+  plaintext password is on disk. `auth_query` uses this method too.
+
