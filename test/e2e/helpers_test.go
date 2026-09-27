@@ -145,3 +145,19 @@ func connect(t *testing.T, connString string) *pgx.Conn {
 	return c
 }
 
+func mustExec(t *testing.T, c *pgx.Conn, sql string, args ...any) {
+	t.Helper()
+	if _, err := c.Exec(context.Background(), sql, args...); err != nil {
+		t.Fatalf("exec %q: %v", sql, err)
+	}
+}
+
+func queryInt(t *testing.T, c *pgx.Conn, sql string, args ...any) int64 {
+	t.Helper()
+	var n int64
+	if err := c.QueryRow(context.Background(), sql, args...).Scan(&n); err != nil {
+		t.Fatalf("query %q: %v", sql, err)
+	}
+	return n
+}
+
