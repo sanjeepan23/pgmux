@@ -118,3 +118,16 @@ pool:
 	return a, path
 }
 
+// dsn returns a connection string for pgmux with the given user and database.
+func dsn(a *app.App, user, password, db string, extra ...string) string {
+	host, port, _ := strings.Cut(a.Addr(), ":")
+	u := url.URL{Scheme: "postgres", User: url.UserPassword(user, password), Host: host + ":" + port, Path: db}
+	q := url.Values{}
+	q.Set("sslmode", "disable")
+	for i := 0; i+1 < len(extra); i += 2 {
+		q.Set(extra[i], extra[i+1])
+	}
+	u.RawQuery = q.Encode()
+	return u.String()
+}
+
