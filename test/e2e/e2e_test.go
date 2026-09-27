@@ -36,3 +36,44 @@ func TestBasicCRUD(t *testing.T) {
 	})
 }
 
+func TestTransactionCommitRollback(t *testing.T) {
+	bothModes(t, func(t *testing.T, mode string) {
+		a, _ := startPgmux(t, options{mode: mode, poolSize: 2})
+		ctx := context.Background()
+		c := connect(t, appDSN(a))
+		other := connect(t, appDSN(a))
+		tbl := uniqueName("tx")
+		mustExec(t, c, "CREATE TABLE "+tbl+" (v int)")
+		defer mustExec(t, c, "DROP TABLE "+tbl)
+
+		tx, err := c.Begin(ctx)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := tx.Exec(ctx, "INSERT INTO "+tbl+" VALUES (1)"); err != nil {
+			t.Fatal(err)
+		}
+		if n := queryInt(t, other, "SELECT count(*) FROM "+tbl); n != 0 {
+			t.Fatalf("uncommitted row is visible to another client")
+		}
+		if err := tx.Commit(ctx); err != nil {
+			t.Fatal(err)
+		}
+
+		tx, _ = c.Begin(ctx)
+		_, _ = tx.Exec(ctx, "INSERT INTO "+tbl+" VALUES (2)")
+		_ = tx.Rollback(ctx)
+
+		// An error inside a transaction must leave the client usable after rollback.
+		tx, _ = c.Begin(ctx)
+		if _, err := tx.Exec(ctx, "SELECT 1/0"); err == nil {
+			t.Fatal("expected division by zero")
+		}
+		_ = tx.Rollback(ctx)
+
+		if n := queryInt(t, other, "SELECT count(*) FROM "+tbl); n != 1 {
+			t.Fatalf("count = %d, want 1", n)
+		}
+	})
+}
+
