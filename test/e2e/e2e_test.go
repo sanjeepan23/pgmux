@@ -77,3 +77,52 @@ func TestTransactionCommitRollback(t *testing.T) {
 	})
 }
 
+// TestPreparedStatementsAcrossServers makes many clients share few servers, so statements must move between servers.
+func TestPreparedStatementsAcrossServers(t *testing.T) {
+	a, _ := startPgmux(t, options{poolSize: 3})
+	modes := []pgx.QueryExecMode{
+		pgx.QueryExecModeCacheStatement, pgx.QueryExecModeCacheDescribe,
+		pgx.QueryExecModeDescribeExec, pgx.QueryExecModeExec, pgx.QueryExecModeSimpleProtocol,
+	}
+	for _, mode := range modes {
+		t.Run(mode.String(), func(t *testing.T) {
+			var wg sync.WaitGroup
+			errs := make(chan error, 20)
+			for w := 0; w < 10; w++ {
+				wg.Add(1)
+				go func(w int) {
+					defer wg.Done()
+					ctx := context.Background()
+					cfg, _ := pgx.ParseConfig(appDSN(a))
+					cfg.DefaultQueryExecMode = mode
+					// Reconnect a few times, so that each new connection prepares again.
+					for round := 0; round < 3; round++ {
+						c, err := pgx.ConnectConfig(ctx, cfg)
+						if err != nil {
+							errs <- err
+							return
+						}
+						for i := 0; i < 100; i++ {
+							var got int
+							if err := c.QueryRow(ctx, "SELECT $1::int + $2::int", i, w).Scan(&got); err != nil {
+								errs <- fmt.Errorf("worker %d iter %d: %w", w, i, err)
+								c.Close(ctx)
+								return
+							}
+							if got != i+w {
+								errs <- fmt.Errorf("got %d, want %d", got, i+w)
+							}
+						}
+						c.Close(ctx)
+					}
+				}(w)
+			}
+			wg.Wait()
+			close(errs)
+			for err := range errs {
+				t.Error(err)
+			}
+		})
+	}
+}
+
