@@ -126,3 +126,52 @@ func TestPreparedStatementsAcrossServers(t *testing.T) {
 	}
 }
 
+func TestConcurrency(t *testing.T) {
+	a, _ := startPgmux(t, options{poolSize: 10})
+	ctx := context.Background()
+	setup := connect(t, appDSN(a))
+	tbl := uniqueName("conc")
+	mustExec(t, setup, "CREATE TABLE "+tbl+" (id int PRIMARY KEY, n int)")
+	mustExec(t, setup, "INSERT INTO "+tbl+" VALUES (1, 0)")
+	defer mustExec(t, setup, "DROP TABLE "+tbl)
+
+	const workers, txPerWorker = 200, 50
+	var wg sync.WaitGroup
+	errs := make(chan error, workers)
+	for w := 0; w < workers; w++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			c, err := pgx.Connect(ctx, appDSN(a))
+			if err != nil {
+				errs <- err
+				return
+			}
+			defer c.Close(ctx)
+			for i := 0; i < txPerWorker; i++ {
+				err := pgx.BeginFunc(ctx, c, func(tx pgx.Tx) error {
+					_, err := tx.Exec(ctx, "UPDATE "+tbl+" SET n = n + 1 WHERE id = 1")
+					return err
+				})
+				if err != nil {
+					errs <- err
+					return
+				}
+			}
+		}()
+	}
+	wg.Wait()
+	close(errs)
+	for err := range errs {
+		t.Fatal(err)
+	}
+	if n := queryInt(t, setup, "SELECT n FROM "+tbl+" WHERE id = 1"); n != workers*txPerWorker {
+		t.Fatalf("n = %d, want %d", n, workers*txPerWorker)
+	}
+	for _, p := range a.Manager.Pools() {
+		if s := p.Stats(); s.ServersTotal > 10 {
+			t.Fatalf("pool opened %d servers, max is 10", s.ServersTotal)
+		}
+	}
+}
+
