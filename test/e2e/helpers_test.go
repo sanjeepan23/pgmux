@@ -131,3 +131,17 @@ func dsn(a *app.App, user, password, db string, extra ...string) string {
 	return u.String()
 }
 
+func appDSN(a *app.App, extra ...string) string { return dsn(a, "app", "app", "appdb", extra...) }
+
+func connect(t *testing.T, connString string) *pgx.Conn {
+	t.Helper()
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	c, err := pgx.Connect(ctx, connString)
+	if err != nil {
+		t.Fatalf("connect: %v", err)
+	}
+	t.Cleanup(func() { c.Close(context.Background()) })
+	return c
+}
+
