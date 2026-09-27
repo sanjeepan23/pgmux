@@ -161,3 +161,17 @@ func queryInt(t *testing.T, c *pgx.Conn, sql string, args ...any) int64 {
 	return n
 }
 
+func queryString(t *testing.T, c *pgx.Conn, sql string, args ...any) string {
+	t.Helper()
+	var s string
+	if err := c.QueryRow(context.Background(), sql, args...).Scan(&s); err != nil {
+		t.Fatalf("query %q: %v", sql, err)
+	}
+	return s
+}
+
+func bothModes(t *testing.T, fn func(t *testing.T, mode string)) {
+	for _, mode := range []string{"session", "transaction"} {
+		t.Run(mode, func(t *testing.T) { fn(t, mode) })
+	}
+}
