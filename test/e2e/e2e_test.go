@@ -280,3 +280,16 @@ func TestListenNotify(t *testing.T) {
 	})
 }
 
+func TestTLS(t *testing.T) {
+	a, _ := startPgmux(t, options{tlsRequired: true})
+	ca := repoRoot() + "/deploy/certs/ca.crt"
+	host := strings.Replace(appDSN(a, "sslmode", "verify-full", "sslrootcert", ca), "127.0.0.1", "localhost", 1)
+	c := connect(t, host)
+	if n := queryInt(t, c, "SELECT 1"); n != 1 {
+		t.Fatal("query over TLS failed")
+	}
+	if _, err := pgx.Connect(context.Background(), appDSN(a)); err == nil || !strings.Contains(err.Error(), "requires TLS") {
+		t.Fatalf("plaintext connect err = %v, want TLS required", err)
+	}
+}
+
