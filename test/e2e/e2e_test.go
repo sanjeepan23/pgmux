@@ -252,3 +252,31 @@ func TestLargeResult(t *testing.T) {
 	}
 }
 
+func TestListenNotify(t *testing.T) {
+	t.Run("session", func(t *testing.T) {
+		a, _ := startPgmux(t, options{mode: "session"})
+		listener := connect(t, appDSN(a))
+		notifier := connect(t, appDSN(a))
+		mustExec(t, listener, "LISTEN pgmux_test")
+		mustExec(t, notifier, "SELECT pg_notify('pgmux_test', 'hello')")
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		n, err := listener.WaitForNotification(ctx)
+		if err != nil || n.Payload != "hello" {
+			t.Fatalf("notification = %v, err = %v", n, err)
+		}
+	})
+	t.Run("transaction", func(t *testing.T) {
+		a, _ := startPgmux(t, options{})
+		c := connect(t, appDSN(a, "default_query_exec_mode", "simple_protocol"))
+		_, err := c.Exec(context.Background(), "LISTEN pgmux_test")
+		var pgErr *pgconn.PgError
+		if !errors.As(err, &pgErr) || !strings.Contains(pgErr.Message, "transaction pooling") {
+			t.Fatalf("err = %v, want a clear rejection", err)
+		}
+		if n := queryInt(t, c, "SELECT 1"); n != 1 {
+			t.Fatal("connection is not usable after rejection")
+		}
+	})
+}
+
