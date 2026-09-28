@@ -175,3 +175,27 @@ func TestConcurrency(t *testing.T) {
 	}
 }
 
+func TestCancelQuery(t *testing.T) {
+	bothModes(t, func(t *testing.T, mode string) {
+		a, _ := startPgmux(t, options{mode: mode})
+		c := connect(t, appDSN(a))
+		// Send the cancel the way psql does on Ctrl+C: a CancelRequest on a new connection.
+		go func() {
+			time.Sleep(300 * time.Millisecond)
+			_ = c.PgConn().CancelRequest(context.Background())
+		}()
+		start := time.Now()
+		_, err := c.Exec(context.Background(), "SELECT pg_sleep(30)")
+		var pgErr *pgconn.PgError
+		if !errors.As(err, &pgErr) || pgErr.Code != "57014" {
+			t.Fatalf("err = %v, want query_canceled (57014)", err)
+		}
+		if d := time.Since(start); d > 5*time.Second {
+			t.Fatalf("cancel took %v", d)
+		}
+		if n := queryInt(t, c, "SELECT 42"); n != 42 {
+			t.Fatal("connection is not usable after cancel")
+		}
+	})
+}
+
