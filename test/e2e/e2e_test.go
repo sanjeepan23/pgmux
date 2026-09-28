@@ -199,3 +199,37 @@ func TestCancelQuery(t *testing.T) {
 	})
 }
 
+func TestCopyInOut(t *testing.T) {
+	bothModes(t, func(t *testing.T, mode string) {
+		a, _ := startPgmux(t, options{mode: mode})
+		ctx := context.Background()
+		c := connect(t, appDSN(a))
+		tbl := uniqueName("copy")
+		mustExec(t, c, "CREATE TABLE "+tbl+" (id int, name text)")
+		defer mustExec(t, c, "DROP TABLE "+tbl)
+
+		const rows = 100_000
+		n, err := c.CopyFrom(ctx, pgx.Identifier{tbl}, []string{"id", "name"},
+			pgx.CopyFromSlice(rows, func(i int) ([]any, error) { return []any{i, fmt.Sprintf("row %d", i)}, nil }))
+		if err != nil || n != rows {
+			t.Fatalf("copy from: n=%d err=%v", n, err)
+		}
+		var buf bytes.Buffer
+		tag, err := c.PgConn().CopyTo(ctx, &buf, "COPY "+tbl+" TO STDOUT")
+		if err != nil || tag.RowsAffected() != rows {
+			t.Fatalf("copy to: tag=%v err=%v", tag, err)
+		}
+		if lines := bytes.Count(buf.Bytes(), []byte("\n")); lines != rows {
+			t.Fatalf("copy to returned %d lines", lines)
+		}
+		// A failed COPY must leave the connection usable.
+		_, err = c.PgConn().CopyFrom(ctx, strings.NewReader("not-a-number\tx\n"), "COPY "+tbl+" FROM STDIN")
+		if err == nil {
+			t.Fatal("expected copy error")
+		}
+		if got := queryInt(t, c, "SELECT count(*) FROM "+tbl); got != rows {
+			t.Fatalf("count = %d", got)
+		}
+	})
+}
+
