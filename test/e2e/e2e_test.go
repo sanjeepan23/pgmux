@@ -329,3 +329,22 @@ func TestAuth(t *testing.T) {
 	})
 }
 
+func TestQueryWaitTimeout(t *testing.T) {
+	a, _ := startPgmux(t, options{poolSize: 1, waitTimeout: "300ms"})
+	ctx := context.Background()
+	holder := connect(t, appDSN(a))
+	tx, err := holder.Begin(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer tx.Rollback(ctx)
+	if _, err := tx.Exec(ctx, "SELECT 1"); err != nil {
+		t.Fatal(err)
+	}
+	waiter := connect(t, appDSN(a))
+	_, err = waiter.Exec(ctx, "SELECT 1")
+	if err == nil || !strings.Contains(err.Error(), "query_wait_timeout") {
+		t.Fatalf("err = %v, want query_wait_timeout", err)
+	}
+}
+
