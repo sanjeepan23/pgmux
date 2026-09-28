@@ -348,3 +348,29 @@ func TestQueryWaitTimeout(t *testing.T) {
 	}
 }
 
+func TestParameterSync(t *testing.T) {
+	a, _ := startPgmux(t, options{poolSize: 2})
+	ctx := context.Background()
+	ny := connect(t, appDSN(a))
+	plain := connect(t, appDSN(a, "application_name", "plain"))
+	mustExec(t, ny, "SET TimeZone = 'America/New_York'")
+	// Hold one server in a transaction, so the next queries must use the other server.
+	tx, _ := plain.Begin(ctx)
+	_, _ = tx.Exec(ctx, "SELECT 1")
+	for i := 0; i < 5; i++ {
+		if tz := queryString(t, ny, "SHOW TimeZone"); tz != "America/New_York" {
+			t.Fatalf("TimeZone = %q on round %d", tz, i)
+		}
+	}
+	_ = tx.Rollback(ctx)
+	for i := 0; i < 5; i++ {
+		if tz := queryString(t, plain, "SHOW TimeZone"); tz == "America/New_York" {
+			t.Fatal("TimeZone leaked to another client")
+		}
+		if app := queryString(t, plain, "SHOW application_name"); app != "plain" {
+			t.Fatalf("application_name = %q", app)
+		}
+		queryString(t, ny, "SHOW TimeZone")
+	}
+}
+
