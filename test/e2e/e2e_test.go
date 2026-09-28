@@ -233,3 +233,22 @@ func TestCopyInOut(t *testing.T) {
 	})
 }
 
+func TestLargeResult(t *testing.T) {
+	a, _ := startPgmux(t, options{})
+	c := connect(t, appDSN(a))
+	rows, err := c.Query(context.Background(), "SELECT g, repeat('x', 100) FROM generate_series(1, 1000000) g")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var count int
+	for rows.Next() {
+		count++
+	}
+	if err := rows.Err(); err != nil {
+		t.Fatal(err)
+	}
+	if count != 1_000_000 {
+		t.Fatalf("got %d rows", count)
+	}
+}
+
