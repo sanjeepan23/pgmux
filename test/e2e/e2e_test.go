@@ -374,3 +374,26 @@ func TestParameterSync(t *testing.T) {
 	}
 }
 
+func TestSessionModeReset(t *testing.T) {
+	a, _ := startPgmux(t, options{mode: "session", poolSize: 1})
+	c1, err := pgx.Connect(context.Background(), appDSN(a))
+	if err != nil {
+		t.Fatal(err)
+	}
+	pid := queryInt(t, c1, "SELECT pg_backend_pid()")
+	mustExec(t, c1, "SET search_path = foo")
+	mustExec(t, c1, "PREPARE p AS SELECT 1")
+	c1.Close(context.Background())
+
+	c2 := connect(t, appDSN(a))
+	if got := queryInt(t, c2, "SELECT pg_backend_pid()"); got != pid {
+		t.Fatalf("second client got a new server (pid %d, want %d)", got, pid)
+	}
+	if sp := queryString(t, c2, "SHOW search_path"); sp == "foo" {
+		t.Fatal("search_path leaked between session clients")
+	}
+	if _, err := c2.Exec(context.Background(), "EXECUTE p"); err == nil {
+		t.Fatal("prepared statement leaked between session clients")
+	}
+}
+
