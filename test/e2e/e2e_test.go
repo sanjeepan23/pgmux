@@ -293,3 +293,39 @@ func TestTLS(t *testing.T) {
 	}
 }
 
+func TestAuth(t *testing.T) {
+	ctx := context.Background()
+	t.Run("scram", func(t *testing.T) {
+		a, _ := startPgmux(t, options{})
+		if _, err := pgx.Connect(ctx, dsn(a, "app", "wrong", "appdb")); err == nil || !strings.Contains(err.Error(), "28P01") {
+			t.Fatalf("wrong password err = %v", err)
+		}
+		if _, err := pgx.Connect(ctx, dsn(a, "nobody", "x", "appdb")); err == nil {
+			t.Fatal("unknown user connected")
+		}
+		c := connect(t, dsn(a, "md5user", "md5pass", "appdb"))
+		if got := queryString(t, c, "SELECT current_user"); got != "md5user" {
+			t.Fatalf("current_user = %q", got)
+		}
+	})
+	t.Run("md5", func(t *testing.T) {
+		a, _ := startPgmux(t, options{authMethod: "md5"})
+		c := connect(t, appDSN(a))
+		queryInt(t, c, "SELECT 1")
+		if _, err := pgx.Connect(ctx, dsn(a, "app", "wrong", "appdb")); err == nil {
+			t.Fatal("wrong password accepted")
+		}
+	})
+	t.Run("auth_query", func(t *testing.T) {
+		a, _ := startPgmux(t, options{})
+		// bob is not in the userlist. pgmux reads his SCRAM secret from Postgres and reuses his proof to log in.
+		c := connect(t, dsn(a, "bob", "bob", "appdb"))
+		if got := queryString(t, c, "SELECT current_user"); got != "bob" {
+			t.Fatalf("current_user = %q", got)
+		}
+		if _, err := pgx.Connect(ctx, dsn(a, "bob", "wrong", "appdb")); err == nil {
+			t.Fatal("wrong password accepted for auth_query user")
+		}
+	})
+}
+
