@@ -397,3 +397,22 @@ func TestSessionModeReset(t *testing.T) {
 	}
 }
 
+func TestHotReload(t *testing.T) {
+	a, path := startPgmux(t, options{poolSize: 3})
+	c := connect(t, appDSN(a))
+	queryInt(t, c, "SELECT 1")
+	data, _ := os.ReadFile(path)
+	updated := strings.Replace(string(data), "default_size: 3", "default_size: 7", 1)
+	if err := os.WriteFile(path, []byte(updated), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	deadline := time.Now().Add(5 * time.Second)
+	for time.Now().Before(deadline) {
+		if p := a.Manager.Pools(); len(p) > 0 && p[0].Stats().MaxSize == 7 {
+			return
+		}
+		time.Sleep(50 * time.Millisecond)
+	}
+	t.Fatal("pool size did not change after the config file changed")
+}
+
