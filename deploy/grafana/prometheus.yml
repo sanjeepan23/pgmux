@@ -1,0 +1,6 @@
+# Scrape config for pgmux. The admin API serves /metrics.
+scrape_configs:
+  - job_name: pgmux
+    scrape_interval: 5s
+    static_configs:
+      - targets: ["pgmux:9930"]
