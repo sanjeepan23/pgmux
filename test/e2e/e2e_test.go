@@ -465,3 +465,40 @@ func TestPauseResume(t *testing.T) {
 	}
 }
 
+func TestGracefulShutdown(t *testing.T) {
+	a, _ := startPgmux(t, options{})
+	ctx := context.Background()
+	c, err := pgx.Connect(ctx, appDSN(a))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer c.Close(ctx)
+	tx, err := c.Begin(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := tx.Exec(ctx, "SELECT 1"); err != nil {
+		t.Fatal(err)
+	}
+	stopped := make(chan struct{})
+	go func() {
+		a.Shutdown(5 * time.Second)
+		close(stopped)
+	}()
+	time.Sleep(200 * time.Millisecond)
+	// The open transaction must be able to finish during the drain.
+	if _, err := tx.Exec(ctx, "SELECT 2"); err != nil {
+		t.Fatalf("query during drain: %v", err)
+	}
+	if err := tx.Commit(ctx); err != nil {
+		t.Fatalf("commit during drain: %v", err)
+	}
+	select {
+	case <-stopped:
+	case <-time.After(5 * time.Second):
+		t.Fatal("shutdown did not finish after the transaction ended")
+	}
+	if _, err := c.Exec(ctx, "SELECT 3"); err == nil {
+		t.Fatal("client still works after shutdown")
+	}
+}
