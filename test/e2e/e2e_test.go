@@ -416,3 +416,52 @@ func TestHotReload(t *testing.T) {
 	t.Fatal("pool size did not change after the config file changed")
 }
 
+func TestPauseResume(t *testing.T) {
+	a, _ := startPgmux(t, options{})
+	c := connect(t, appDSN(a))
+	queryInt(t, c, "SELECT 1")
+	base := "http://" + a.AdminAddr()
+	post := func(path string) {
+		resp, err := http.Post(base+path, "", nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		body, _ := io.ReadAll(resp.Body)
+		resp.Body.Close()
+		if resp.StatusCode != 200 {
+			t.Fatalf("%s: %d %s", path, resp.StatusCode, body)
+		}
+	}
+	post("/pause?timeout=2s")
+	done := make(chan error, 1)
+	go func() {
+		_, err := c.Exec(context.Background(), "SELECT 1")
+		done <- err
+	}()
+	select {
+	case err := <-done:
+		t.Fatalf("query ran while paused (err %v)", err)
+	case <-time.After(300 * time.Millisecond):
+	}
+	post("/resume")
+	select {
+	case err := <-done:
+		if err != nil {
+			t.Fatal(err)
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("query did not run after resume")
+	}
+	resp, err := http.Get(base + "/metrics")
+	if err != nil {
+		t.Fatal(err)
+	}
+	body, _ := io.ReadAll(resp.Body)
+	resp.Body.Close()
+	for _, m := range []string{"pgmux_queries_total", "pgmux_acquire_wait_seconds", "pgmux_servers_idle"} {
+		if !bytes.Contains(body, []byte(m)) {
+			t.Errorf("metrics output has no %s", m)
+		}
+	}
+}
+
