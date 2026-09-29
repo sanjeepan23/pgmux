@@ -111,3 +111,19 @@ an MD5 hash, or a SCRAM secret. pgmux needs one of these to log in to Postgres:
 - a SCRAM secret. Then pgmux reuses the SCRAM proof of the first client that logs in, so no
   plaintext password is on disk. `auth_query` uses this method too.
 
+## Admin API
+
+| Endpoint | Description |
+| --- | --- |
+| `GET /stats` | Totals for clients, servers, queries, transactions and errors |
+| `GET /pools` | One entry per pool |
+| `GET /events` | Server-Sent Events with stats and pools, once a second |
+| `GET /metrics` | Prometheus metrics |
+| `POST /pause?user=&db=&timeout=` | Stop handing out servers and wait for active ones to return |
+| `POST /resume?user=&db=` | Hand out servers again |
+| `POST /reload` | Load the config files again |
+| `GET /healthz` | Liveness |
+| `GET /debug/pprof/` | Go profiling (off when `admin_read_only` is true) |
+
+The Grafana dashboard is in [deploy/grafana](deploy/grafana).
+
