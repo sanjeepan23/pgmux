@@ -1,0 +1,79 @@
+# Minimal pgmux deployment. Put the real userlist in the Secret, and point server.host at your Postgres service.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: pgmux
+data:
+  pgmux.yaml: |
+    listen: 0.0.0.0:6432
+    admin_listen: 0.0.0.0:9930
+    pool_mode: transaction
+    server:
+      host: postgres
+      port: 5432
+      sslmode: require
+    auth:
+      method: scram-sha-256
+      userlist: /etc/pgmux-secret/userlist.txt
+    pool:
+      default_size: 20
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: pgmux-userlist
+stringData:
+  userlist.txt: |
+    "app" "change-me"
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: pgmux
+spec:
+  replicas: 2
+  selector:
+    matchLabels: {app: pgmux}
+  template:
+    metadata:
+      labels: {app: pgmux}
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "9930"
+    spec:
+      terminationGracePeriodSeconds: 40
+      containers:
+        - name: pgmux
+          image: ghcr.io/sanjeepan23/pgmux:latest
+          args: ["-config", "/etc/pgmux/pgmux.yaml", "-log-format", "json"]
+          ports:
+            - {name: postgres, containerPort: 6432}
+            - {name: admin, containerPort: 9930}
+          readinessProbe:
+            httpGet: {path: /healthz, port: admin}
+          livenessProbe:
+            tcpSocket: {port: postgres}
+          resources:
+            requests: {cpu: 100m, memory: 64Mi}
+            limits: {memory: 256Mi}
+          securityContext:
+            readOnlyRootFilesystem: true
+            allowPrivilegeEscalation: false
+          volumeMounts:
+            - {name: config, mountPath: /etc/pgmux}
+            - {name: userlist, mountPath: /etc/pgmux-secret}
+      volumes:
+        - name: config
+          configMap: {name: pgmux}
+        - name: userlist
+          secret: {secretName: pgmux-userlist}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: pgmux
+spec:
+  selector: {app: pgmux}
+  ports:
+    - {name: postgres, port: 6432, targetPort: postgres}
+    - {name: admin, port: 9930, targetPort: admin}
