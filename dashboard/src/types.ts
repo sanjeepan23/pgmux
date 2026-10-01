@@ -25,3 +25,18 @@ export interface PoolStats {
   servers_idle: number;
 }
 
+export interface Event {
+  time: number;
+  stats: Stats;
+  pools: PoolStats[];
+}
+
+/** One point of history, with rates computed from the previous event. */
+export interface Sample {
+  time: number;
+  qps: number;
+  tps: number;
+  serversActive: number;
+  serversMax: number;
+  clientsWaiting: number;
+}
