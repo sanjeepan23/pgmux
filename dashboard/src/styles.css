@@ -41,3 +41,19 @@
   --series-2: #d95926;
 }
 
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  background: var(--page);
+  color: var(--text-primary);
+  font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+main { max-width: 1200px; margin: 0 auto; padding: 24px 16px 48px; }
+header { display: flex; align-items: baseline; gap: 16px; flex-wrap: wrap; margin-bottom: 20px; }
+h1 { font-size: 22px; margin: 0; }
+h2 { font-size: 14px; font-weight: 600; margin: 0 0 12px; }
+.meta { color: var(--text-muted); font-size: 13px; }
+.status { font-size: 13px; color: var(--text-secondary); }
+.status.ok span { color: var(--good); }
+.status.off span { color: var(--critical); }
+
