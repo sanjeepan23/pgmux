@@ -57,3 +57,35 @@ h2 { font-size: 14px; font-weight: 600; margin: 0 0 12px; }
 .status.ok span { color: var(--good); }
 .status.off span { color: var(--critical); }
 
+.card { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 16px; }
+.tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 12px; margin-bottom: 12px; }
+.tile-label { font-size: 12px; color: var(--text-secondary); }
+.tile-value { font-size: 30px; font-weight: 600; margin-top: 4px; }
+.tile-detail { font-size: 12px; color: var(--text-muted); margin-top: 2px; }
+
+.charts { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 480px), 1fr)); gap: 12px; margin-bottom: 12px; }
+.chart { margin: 0; }
+figcaption { display: flex; justify-content: space-between; align-items: baseline; flex-wrap: wrap; gap: 8px; }
+.legend { display: flex; gap: 14px; list-style: none; margin: 0; padding: 0; font-size: 12px; color: var(--text-secondary); }
+.legend li { display: flex; align-items: center; gap: 6px; }
+.key { display: inline-block; width: 14px; height: 2px; border-radius: 1px; }
+.key.dashed { background: none; border-top: 2px dashed var(--text-muted); height: 0; }
+.plot { position: relative; }
+svg { width: 100%; height: auto; display: block; touch-action: none; }
+.grid { stroke: var(--grid); stroke-width: 1; }
+.axis { stroke: var(--axis); stroke-width: 1; }
+.reference { stroke: var(--text-muted); stroke-width: 1.5; stroke-dasharray: 5 4; }
+.tick { fill: var(--text-muted); font-size: 11px; font-variant-numeric: tabular-nums; }
+.end-label { fill: var(--text-secondary); font-size: 11px; }
+.crosshair { stroke: var(--text-muted); stroke-width: 1; }
+.dot { stroke: var(--surface); stroke-width: 2; }
+.tooltip {
+  position: absolute; top: 8px; transform: translateX(-50%); pointer-events: none;
+  background: var(--surface); border: 1px solid var(--border); border-radius: 8px;
+  padding: 8px 10px; font-size: 12px; box-shadow: 0 4px 12px rgba(0, 0, 0, 0.12); white-space: nowrap;
+}
+.tt-time { color: var(--text-muted); margin-bottom: 4px; }
+.tt-row { display: flex; align-items: center; gap: 6px; color: var(--text-secondary); }
+.tt-row strong { color: var(--text-primary); font-variant-numeric: tabular-nums; }
+.tt-key { width: 12px; height: 2px; border-radius: 1px; }
+
