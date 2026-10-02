@@ -89,3 +89,13 @@ svg { width: 100%; height: auto; display: block; touch-action: none; }
 .tt-row strong { color: var(--text-primary); font-variant-numeric: tabular-nums; }
 .tt-key { width: 12px; height: 2px; border-radius: 1px; }
 
+.table-wrap { overflow-x: auto; }
+table { width: 100%; border-collapse: collapse; font-size: 13px; }
+th { text-align: left; font-weight: 500; color: var(--text-secondary); padding: 6px 8px; border-bottom: 1px solid var(--axis); }
+td { padding: 6px 8px; border-bottom: 1px solid var(--grid); }
+.num { text-align: right; font-variant-numeric: tabular-nums; }
+.empty { color: var(--text-muted); text-align: center; padding: 16px; }
+.badge { margin-left: 6px; font-size: 11px; padding: 1px 6px; border-radius: 4px; border: 1px solid var(--border); color: var(--text-secondary); }
+.bar { display: inline-block; vertical-align: middle; width: 120px; height: 8px; border-radius: 4px; background: var(--grid); overflow: hidden; }
+.bar-fill { height: 100%; background: var(--series-1); border-radius: 4px; }
+.bar-label { margin-left: 8px; color: var(--text-secondary); font-variant-numeric: tabular-nums; }
