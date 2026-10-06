@@ -63,3 +63,16 @@ func pgxConnect(t testing.TB, m pgx.QueryExecMode) *pgx.Conn {
 	return c
 }
 
+// sqlDrivers are the database/sql drivers under test.
+var sqlDrivers = map[string]string{"pq": "postgres", "pgx_stdlib": "pgx"}
+
+func sqlOpen(t testing.TB, driver string) *sql.DB {
+	t.Helper()
+	db, err := sql.Open(driver, dsn(""))
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { db.Close() })
+	return db
+}
+
