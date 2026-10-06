@@ -28,3 +28,14 @@ func env(name, def string) string {
 	return def
 }
 
+var (
+	mode   = env("PGMUX_MODE", "transaction")
+	dbName = map[string]string{"transaction": "appdb", "session": "sessiondb"}[mode]
+	seq    atomic.Int64
+)
+
+func dsn(extra string) string {
+	return fmt.Sprintf("host=%s port=%s user=app password=app dbname=%s sslmode=disable %s",
+		env("PGMUX_HOST", "localhost"), env("PGMUX_PORT", "6432"), dbName, extra)
+}
+
