@@ -116,3 +116,53 @@ func TestBasicCRUD(t *testing.T) {
 	}
 }
 
+func mustSQL(t testing.TB, db *sql.DB, q string, args ...any) {
+	t.Helper()
+	if _, err := db.Exec(q, args...); err != nil {
+		t.Fatalf("%s: %v", q, err)
+	}
+}
+
+func TestTransactionCommitRollback(t *testing.T) {
+	ctx := context.Background()
+	for name, m := range pgxModes {
+		t.Run(name, func(t *testing.T) {
+			c := pgxConnect(t, m)
+			tbl := table("tx")
+			_, _ = c.Exec(ctx, "CREATE TABLE "+tbl+" (v int)")
+			defer c.Exec(ctx, "DROP TABLE "+tbl)
+			_ = pgx.BeginFunc(ctx, c, func(tx pgx.Tx) error { _, err := tx.Exec(ctx, "INSERT INTO "+tbl+" VALUES (1)"); return err })
+			tx, _ := c.Begin(ctx)
+			_, _ = tx.Exec(ctx, "INSERT INTO "+tbl+" VALUES (2)")
+			_ = tx.Rollback(ctx)
+			tx, _ = c.Begin(ctx)
+			if _, err := tx.Exec(ctx, "SELECT 1/0"); err == nil {
+				t.Fatal("expected an error")
+			}
+			_ = tx.Rollback(ctx)
+			var n int
+			if err := c.QueryRow(ctx, "SELECT count(*) FROM "+tbl).Scan(&n); err != nil || n != 1 {
+				t.Fatalf("count = %d, err = %v", n, err)
+			}
+		})
+	}
+	for name, driver := range sqlDrivers {
+		t.Run(name, func(t *testing.T) {
+			db := sqlOpen(t, driver)
+			tbl := table("tx")
+			mustSQL(t, db, "CREATE TABLE "+tbl+" (v int)")
+			defer mustSQL(t, db, "DROP TABLE "+tbl)
+			tx, _ := db.Begin()
+			_, _ = tx.Exec("INSERT INTO " + tbl + " VALUES (1)")
+			_ = tx.Commit()
+			tx, _ = db.Begin()
+			_, _ = tx.Exec("INSERT INTO " + tbl + " VALUES (2)")
+			_ = tx.Rollback()
+			var n int
+			if err := db.QueryRow("SELECT count(*) FROM " + tbl).Scan(&n); err != nil || n != 1 {
+				t.Fatalf("count = %d, err = %v", n, err)
+			}
+		})
+	}
+}
+
