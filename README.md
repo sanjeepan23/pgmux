@@ -127,3 +127,18 @@ an MD5 hash, or a SCRAM secret. pgmux needs one of these to log in to Postgres:
 
 The Grafana dashboard is in [deploy/grafana](deploy/grafana).
 
+## Compatibility
+
+The [client suites](clients/) run the same nine scenarios in four languages, in both pool modes.
+The scenarios are CRUD, transactions, prepared statements, 200 concurrent workers, cancel, COPY,
+1M-row results, LISTEN/NOTIFY and TLS. CI runs each suite against Postgres 14 and 17.
+
+| Language | Drivers and ORMs | Transaction mode | Session mode |
+| --- | --- | --- | --- |
+| Go | pgx v5 (cache statement, simple protocol), pgx `database/sql`, lib/pq | ✅ | ✅ |
+| Python | psycopg 3, asyncpg, SQLAlchemy 2 | ✅ | ✅ |
+| TypeScript | node-postgres, postgres.js (pipelined), Prisma | ✅ | ✅ |
+| Java | pgjdbc (`prepareThreshold` 0, 1 and 5), HikariCP | ✅ | ✅ |
+
+Prisma works without the `pgbouncer=true` flag.
+
