@@ -204,3 +204,45 @@ func TestPreparedStatements(t *testing.T) {
 	}
 }
 
+func TestConcurrency(t *testing.T) {
+	ctx := context.Background()
+	setup := pgxConnect(t, pgx.QueryExecModeCacheStatement)
+	tbl := table("conc")
+	_, _ = setup.Exec(ctx, "CREATE TABLE "+tbl+" (id int PRIMARY KEY, n int)")
+	_, _ = setup.Exec(ctx, "INSERT INTO "+tbl+" VALUES (1, 0)")
+	defer setup.Exec(ctx, "DROP TABLE "+tbl)
+	const workers, txs = 200, 50
+	var wg sync.WaitGroup
+	errs := make(chan error, workers)
+	for w := 0; w < workers; w++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			c, err := pgx.Connect(ctx, dsn(""))
+			if err != nil {
+				errs <- err
+				return
+			}
+			defer c.Close(ctx)
+			for i := 0; i < txs; i++ {
+				if err := pgx.BeginFunc(ctx, c, func(tx pgx.Tx) error {
+					_, err := tx.Exec(ctx, "UPDATE "+tbl+" SET n = n + 1 WHERE id = 1")
+					return err
+				}); err != nil {
+					errs <- err
+					return
+				}
+			}
+		}()
+	}
+	wg.Wait()
+	close(errs)
+	for err := range errs {
+		t.Fatal(err)
+	}
+	var n int
+	if err := setup.QueryRow(ctx, "SELECT n FROM "+tbl).Scan(&n); err != nil || n != workers*txs {
+		t.Fatalf("n = %d, err = %v", n, err)
+	}
+}
+
