@@ -110,3 +110,57 @@ function PoolTable({ pools }: { pools: PoolStats[] }) {
   );
 }
 
+export function App() {
+  const { latest, samples, connected } = useEvents();
+  const s = latest?.stats;
+  const last = samples[samples.length - 1];
+  const times = samples.map((p) => p.time);
+
+  return (
+    <main>
+      <header>
+        <h1>pgmux</h1>
+        <span className={connected ? "status ok" : "status off"}>
+          <span aria-hidden="true">{connected ? "●" : "○"}</span> {connected ? "live" : "disconnected"}
+        </span>
+        {s && <span className="meta">version {s.version} · up {Math.floor(s.uptime_seconds / 60)} min</span>}
+      </header>
+
+      <section className="tiles">
+        <Tile label="Clients" value={s ? `${s.clients}` : "–"} detail={s ? `${s.clients_waiting} waiting` : undefined} />
+        <Tile
+          label="Server connections"
+          value={s ? `${s.servers_active}` : "–"}
+          detail={s ? `active, ${s.servers_idle} idle` : undefined}
+        />
+        <Tile label="Queries per second" value={last ? Math.round(last.qps).toLocaleString() : "–"} />
+        <Tile label="Transactions per second" value={last ? Math.round(last.tps).toLocaleString() : "–"} />
+        <Tile label="Errors" value={s ? s.errors_total.toLocaleString() : "–"} detail="since start" />
+      </section>
+
+      <div className="charts">
+        <LineChart
+          title="Throughput"
+          unit="per second"
+          times={times}
+          series={[
+            { key: "qps", label: "queries/s", color: "var(--series-1)", values: samples.map((p) => p.qps) },
+            { key: "tps", label: "transactions/s", color: "var(--series-2)", values: samples.map((p) => p.tps) },
+          ]}
+        />
+        <LineChart
+          title="Pool saturation"
+          unit="connections"
+          times={times}
+          series={[
+            { key: "active", label: "servers active", color: "var(--series-1)", values: samples.map((p) => p.serversActive) },
+            { key: "waiting", label: "clients waiting", color: "var(--series-2)", values: samples.map((p) => p.clientsWaiting) },
+          ]}
+          reference={last ? { label: "pool max", value: last.serversMax } : undefined}
+        />
+      </div>
+
+      <PoolTable pools={latest?.pools ?? []} />
+    </main>
+  );
+}
