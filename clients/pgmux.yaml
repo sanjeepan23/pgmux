@@ -1,0 +1,32 @@
+# pgmux config for the client compatibility suites.
+# Clients pick the pool mode by database name: appdb uses transaction mode and sessiondb uses session mode.
+listen: 127.0.0.1:6432
+admin_listen: 127.0.0.1:9930
+pool_mode: transaction
+shutdown_timeout: 5s
+
+server:
+  host: localhost
+  port: 5432
+  sslmode: verify-full
+  sslrootcert: ../deploy/certs/ca.crt
+
+client_tls:
+  cert_file: ../deploy/certs/server.crt
+  key_file: ../deploy/certs/server.key
+
+auth:
+  method: scram-sha-256
+  userlist: ../deploy/userlist.txt
+
+pool:
+  default_size: 10
+  query_wait_timeout: 60s
+
+databases:
+  appdb:
+    pool_size: 10
+  sessiondb:
+    dbname: appdb
+    pool_mode: session
+    pool_size: 10
