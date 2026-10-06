@@ -42,3 +42,71 @@ function useEvents() {
   return { latest, samples, connected };
 }
 
+function Tile({ label, value, detail }: { label: string; value: string; detail?: string }) {
+  return (
+    <div className="card tile">
+      <div className="tile-label">{label}</div>
+      <div className="tile-value">{value}</div>
+      {detail && <div className="tile-detail">{detail}</div>}
+    </div>
+  );
+}
+
+function PoolTable({ pools }: { pools: PoolStats[] }) {
+  return (
+    <section className="card">
+      <h2>Pools</h2>
+      <div className="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>User</th>
+              <th>Database</th>
+              <th>Mode</th>
+              <th className="num">Clients</th>
+              <th className="num">Waiting</th>
+              <th className="num">Active</th>
+              <th className="num">Idle</th>
+              <th className="num">Max</th>
+              <th>Saturation</th>
+            </tr>
+          </thead>
+          <tbody>
+            {pools.map((p) => {
+              const pct = p.max_size ? Math.round((p.servers_active / p.max_size) * 100) : 0;
+              return (
+                <tr key={`${p.user}/${p.database}`}>
+                  <td>{p.user}</td>
+                  <td>{p.database}</td>
+                  <td>
+                    {p.mode}
+                    {p.paused && <span className="badge">paused</span>}
+                  </td>
+                  <td className="num">{p.clients}</td>
+                  <td className="num">{p.clients_waiting}</td>
+                  <td className="num">{p.servers_active}</td>
+                  <td className="num">{p.servers_idle}</td>
+                  <td className="num">{p.max_size}</td>
+                  <td>
+                    <div className="bar" role="meter" aria-valuenow={pct} aria-valuemin={0} aria-valuemax={100} aria-label="servers in use">
+                      <div className="bar-fill" style={{ width: `${pct}%` }} />
+                    </div>
+                    <span className="bar-label">{pct}%</span>
+                  </td>
+                </tr>
+              );
+            })}
+            {pools.length === 0 && (
+              <tr>
+                <td colSpan={9} className="empty">
+                  No pools yet. A pool starts when the first client connects.
+                </td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+      </div>
+    </section>
+  );
+}
+
