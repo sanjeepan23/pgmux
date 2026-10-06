@@ -39,3 +39,27 @@ func dsn(extra string) string {
 		env("PGMUX_HOST", "localhost"), env("PGMUX_PORT", "6432"), dbName, extra)
 }
 
+func table(prefix string) string {
+	return fmt.Sprintf("go_%s_%d_%d", prefix, os.Getpid(), seq.Add(1))
+}
+
+var pgxModes = map[string]pgx.QueryExecMode{
+	"pgx_cache_statement": pgx.QueryExecModeCacheStatement,
+	"pgx_simple_protocol": pgx.QueryExecModeSimpleProtocol,
+}
+
+func pgxConnect(t testing.TB, m pgx.QueryExecMode) *pgx.Conn {
+	t.Helper()
+	cfg, err := pgx.ParseConfig(dsn(""))
+	if err != nil {
+		t.Fatal(err)
+	}
+	cfg.DefaultQueryExecMode = m
+	c, err := pgx.ConnectConfig(context.Background(), cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { c.Close(context.Background()) })
+	return c
+}
+
