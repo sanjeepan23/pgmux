@@ -166,3 +166,41 @@ func TestTransactionCommitRollback(t *testing.T) {
 	}
 }
 
+func TestPreparedStatements(t *testing.T) {
+	ctx := context.Background()
+	t.Run("pgx_named", func(t *testing.T) {
+		for round := 0; round < 3; round++ {
+			c := pgxConnect(t, pgx.QueryExecModeCacheStatement)
+			if _, err := c.Prepare(ctx, "add", "SELECT $1::int + 1"); err != nil {
+				t.Fatal(err)
+			}
+			for i := 0; i < 100; i++ {
+				var got int
+				if err := c.QueryRow(ctx, "add", i).Scan(&got); err != nil || got != i+1 {
+					t.Fatalf("round %d iter %d: got %d, err %v", round, i, got, err)
+				}
+			}
+			c.Close(ctx)
+		}
+	})
+	for name, driver := range sqlDrivers {
+		t.Run(name, func(t *testing.T) {
+			for round := 0; round < 3; round++ {
+				db := sqlOpen(t, driver)
+				stmt, err := db.Prepare("SELECT $1::int + 1")
+				if err != nil {
+					t.Fatal(err)
+				}
+				for i := 0; i < 100; i++ {
+					var got int
+					if err := stmt.QueryRow(i).Scan(&got); err != nil || got != i+1 {
+						t.Fatalf("round %d iter %d: got %d, err %v", round, i, got, err)
+					}
+				}
+				stmt.Close()
+				db.Close()
+			}
+		})
+	}
+}
+
