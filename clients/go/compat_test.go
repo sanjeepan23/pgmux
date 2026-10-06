@@ -76,3 +76,43 @@ func sqlOpen(t testing.TB, driver string) *sql.DB {
 	return db
 }
 
+func TestBasicCRUD(t *testing.T) {
+	ctx := context.Background()
+	for name, m := range pgxModes {
+		t.Run(name, func(t *testing.T) {
+			c := pgxConnect(t, m)
+			tbl := table("crud")
+			for _, q := range []string{
+				"CREATE TABLE " + tbl + " (id int PRIMARY KEY, name text)",
+				"INSERT INTO " + tbl + " VALUES (1, 'a'), (2, 'b')",
+				"UPDATE " + tbl + " SET name = 'z' WHERE id = 2",
+				"DELETE FROM " + tbl + " WHERE id = 1",
+			} {
+				if _, err := c.Exec(ctx, q); err != nil {
+					t.Fatal(err)
+				}
+			}
+			var name string
+			if err := c.QueryRow(ctx, "SELECT name FROM "+tbl+" WHERE id = $1", 2).Scan(&name); err != nil || name != "z" {
+				t.Fatalf("name = %q, err = %v", name, err)
+			}
+			_, _ = c.Exec(ctx, "DROP TABLE "+tbl)
+		})
+	}
+	for name, driver := range sqlDrivers {
+		t.Run(name, func(t *testing.T) {
+			db := sqlOpen(t, driver)
+			tbl := table("crud")
+			mustSQL(t, db, "CREATE TABLE "+tbl+" (id int PRIMARY KEY, name text)")
+			defer mustSQL(t, db, "DROP TABLE "+tbl)
+			mustSQL(t, db, "INSERT INTO "+tbl+" VALUES ($1, $2)", 1, "a")
+			mustSQL(t, db, "UPDATE "+tbl+" SET name = $1 WHERE id = $2", "z", 1)
+			var name string
+			if err := db.QueryRow("SELECT name FROM "+tbl+" WHERE id = $1", 1).Scan(&name); err != nil || name != "z" {
+				t.Fatalf("name = %q, err = %v", name, err)
+			}
+			mustSQL(t, db, "DELETE FROM "+tbl)
+		})
+	}
+}
+
