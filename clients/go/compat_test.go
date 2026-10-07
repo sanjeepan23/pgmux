@@ -367,3 +367,16 @@ func TestListenNotify(t *testing.T) {
 	}
 }
 
+func TestTLS(t *testing.T) {
+	ca := env("PGMUX_CA", filepath.Join("..", "..", "deploy", "certs", "ca.crt"))
+	extra := "sslmode=verify-full sslrootcert=" + ca
+	c, err := pgx.Connect(context.Background(), strings.Replace(dsn(extra), "sslmode=disable", "", 1))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer c.Close(context.Background())
+	var n int
+	if err := c.QueryRow(context.Background(), "SELECT 1").Scan(&n); err != nil {
+		t.Fatal(err)
+	}
+}
