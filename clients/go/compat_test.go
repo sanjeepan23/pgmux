@@ -344,3 +344,26 @@ func TestLargeResult(t *testing.T) {
 	}
 }
 
+func TestListenNotify(t *testing.T) {
+	ctx := context.Background()
+	c := pgxConnect(t, pgx.QueryExecModeSimpleProtocol)
+	_, err := c.Exec(ctx, "LISTEN go_compat")
+	if mode == "transaction" {
+		if err == nil || !strings.Contains(err.Error(), "transaction pooling") {
+			t.Fatalf("err = %v, want a clear rejection", err)
+		}
+		return
+	}
+	if err != nil {
+		t.Fatal(err)
+	}
+	other := pgxConnect(t, pgx.QueryExecModeSimpleProtocol)
+	_, _ = other.Exec(ctx, "NOTIFY go_compat, 'hi'")
+	wctx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	defer cancel()
+	n, err := c.WaitForNotification(wctx)
+	if err != nil || n.Payload != "hi" {
+		t.Fatalf("notification = %v, err = %v", n, err)
+	}
+}
+
