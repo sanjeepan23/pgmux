@@ -281,3 +281,51 @@ func TestCancelQuery(t *testing.T) {
 	})
 }
 
+func TestCopyInOut(t *testing.T) {
+	ctx := context.Background()
+	const rows = 100_000
+	t.Run("pgx", func(t *testing.T) {
+		c := pgxConnect(t, pgx.QueryExecModeCacheStatement)
+		tbl := table("copy")
+		_, _ = c.Exec(ctx, "CREATE TABLE "+tbl+" (id int, name text)")
+		defer c.Exec(ctx, "DROP TABLE "+tbl)
+		n, err := c.CopyFrom(ctx, pgx.Identifier{tbl}, []string{"id", "name"},
+			pgx.CopyFromSlice(rows, func(i int) ([]any, error) { return []any{i, "n"}, nil }))
+		if err != nil || n != rows {
+			t.Fatalf("copy from: %d %v", n, err)
+		}
+		var buf bytes.Buffer
+		if tag, err := c.PgConn().CopyTo(ctx, &buf, "COPY "+tbl+" TO STDOUT"); err != nil || tag.RowsAffected() != rows {
+			t.Fatalf("copy to: %v %v", tag, err)
+		}
+	})
+	t.Run("pq", func(t *testing.T) {
+		db := sqlOpen(t, "postgres")
+		tbl := table("copy")
+		mustSQL(t, db, "CREATE TABLE "+tbl+" (id int)")
+		defer mustSQL(t, db, "DROP TABLE "+tbl)
+		tx, _ := db.Begin()
+		stmt, err := tx.Prepare(pq.CopyIn(tbl, "id"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		for i := 0; i < rows; i++ {
+			if _, err := stmt.Exec(i); err != nil {
+				t.Fatal(err)
+			}
+		}
+		if _, err := stmt.Exec(); err != nil {
+			t.Fatal(err)
+		}
+		_ = stmt.Close()
+		if err := tx.Commit(); err != nil {
+			t.Fatal(err)
+		}
+		var n int
+		_ = db.QueryRow("SELECT count(*) FROM " + tbl).Scan(&n)
+		if n != rows {
+			t.Fatalf("count = %d", n)
+		}
+	})
+}
+
