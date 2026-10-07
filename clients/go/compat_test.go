@@ -246,3 +246,38 @@ func TestConcurrency(t *testing.T) {
 	}
 }
 
+func TestCancelQuery(t *testing.T) {
+	t.Run("pgx", func(t *testing.T) {
+		c := pgxConnect(t, pgx.QueryExecModeCacheStatement)
+		go func() {
+			time.Sleep(300 * time.Millisecond)
+			_ = c.PgConn().CancelRequest(context.Background())
+		}()
+		_, err := c.Exec(context.Background(), "SELECT pg_sleep(30)")
+		var pgErr *pgconn.PgError
+		if !errors.As(err, &pgErr) || pgErr.Code != "57014" {
+			t.Fatalf("err = %v", err)
+		}
+		var n int
+		if err := c.QueryRow(context.Background(), "SELECT 1").Scan(&n); err != nil {
+			t.Fatal(err)
+		}
+	})
+	t.Run("pq", func(t *testing.T) {
+		db := sqlOpen(t, "postgres")
+		db.SetMaxOpenConns(1)
+		ctx, cancel := context.WithTimeout(context.Background(), 300*time.Millisecond)
+		defer cancel()
+		start := time.Now()
+		// lib/pq sends a CancelRequest when the context ends.
+		_, err := db.ExecContext(ctx, "SELECT pg_sleep(30)")
+		if err == nil || time.Since(start) > 5*time.Second {
+			t.Fatalf("err = %v after %v", err, time.Since(start))
+		}
+		var n int
+		if err := db.QueryRow("SELECT 1").Scan(&n); err != nil {
+			t.Fatal(err)
+		}
+	})
+}
+
