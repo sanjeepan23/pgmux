@@ -50,3 +50,19 @@ def test_basic_crud_psycopg(conn):
         conn.execute(f"DROP TABLE {t}")
 
 
+def test_basic_crud_sqlalchemy():
+    engine = sa.create_engine(URL.replace("postgresql://", "postgresql+psycopg://"))
+    meta = sa.MetaData()
+    items = sa.Table(table("sa"), meta, sa.Column("id", sa.Integer, primary_key=True), sa.Column("name", sa.Text))
+    meta.create_all(engine)
+    try:
+        with engine.begin() as c:
+            c.execute(items.insert(), [{"id": 1, "name": "a"}, {"id": 2, "name": "b"}])
+            c.execute(items.update().where(items.c.id == 2).values(name="z"))
+        with engine.connect() as c:
+            assert c.execute(sa.select(items.c.name).where(items.c.id == 2)).scalar_one() == "z"
+    finally:
+        meta.drop_all(engine)
+        engine.dispose()
+
+
