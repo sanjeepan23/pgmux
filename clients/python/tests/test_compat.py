@@ -82,3 +82,24 @@ async def test_basic_crud_asyncpg():
 # transaction_commit_rollback
 
 
+def test_transaction_commit_rollback(conn):
+    t = table("tx")
+    conn.execute(f"CREATE TABLE {t} (v int)")
+    try:
+        with conn.transaction():
+            conn.execute(f"INSERT INTO {t} VALUES (1)")
+        with pytest.raises(RuntimeError):
+            with conn.transaction():
+                conn.execute(f"INSERT INTO {t} VALUES (2)")
+                raise RuntimeError("roll back")
+        with pytest.raises(psycopg.errors.DivisionByZero):
+            with conn.transaction():
+                conn.execute("SELECT 1/0")
+        assert conn.execute(f"SELECT count(*) FROM {t}").fetchone()[0] == 1
+    finally:
+        conn.execute(f"DROP TABLE {t}")
+
+
+# prepared_statements
+
+
