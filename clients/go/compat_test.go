@@ -329,3 +329,18 @@ func TestCopyInOut(t *testing.T) {
 	})
 }
 
+func TestLargeResult(t *testing.T) {
+	c := pgxConnect(t, pgx.QueryExecModeCacheStatement)
+	rows, err := c.Query(context.Background(), "SELECT g FROM generate_series(1, 1000000) g")
+	if err != nil {
+		t.Fatal(err)
+	}
+	n := 0
+	for rows.Next() {
+		n++
+	}
+	if rows.Err() != nil || n != 1_000_000 {
+		t.Fatalf("rows = %d, err = %v", n, rows.Err())
+	}
+}
+
