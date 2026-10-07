@@ -66,3 +66,19 @@ def test_basic_crud_sqlalchemy():
         engine.dispose()
 
 
+async def test_basic_crud_asyncpg():
+    c = await asyncpg.connect(URL)
+    t = table("apg")
+    try:
+        await c.execute(f"CREATE TABLE {t} (id int PRIMARY KEY, name text)")
+        await c.executemany(f"INSERT INTO {t} VALUES ($1, $2)", [(1, "a"), (2, "b")])
+        await c.execute(f"UPDATE {t} SET name = $1 WHERE id = $2", "z", 2)
+        assert await c.fetchval(f"SELECT name FROM {t} WHERE id = $1", 2) == "z"
+        await c.execute(f"DROP TABLE {t}")
+    finally:
+        await c.close()
+
+
+# transaction_commit_rollback
+
+
