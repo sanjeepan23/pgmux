@@ -162,3 +162,22 @@ def test_cancel_query(conn):
 # copy_in_out
 
 
+def test_copy_in_out(conn):
+    t = table("copy")
+    conn.execute(f"CREATE TABLE {t} (id int, name text)")
+    try:
+        with conn.cursor().copy(f"COPY {t} FROM STDIN") as copy:
+            for i in range(100_000):
+                copy.write_row((i, f"row {i}"))
+        out = io.BytesIO()
+        with conn.cursor().copy(f"COPY {t} TO STDOUT") as copy:
+            for data in copy:
+                out.write(data)
+        assert out.getvalue().count(b"\n") == 100_000
+    finally:
+        conn.execute(f"DROP TABLE {t}")
+
+
+# large_result
+
+
