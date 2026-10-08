@@ -103,3 +103,24 @@ def test_transaction_commit_rollback(conn):
 # prepared_statements
 
 
+def test_prepared_statements_psycopg():
+    for _ in range(3):
+        with psycopg.connect(DSN, autocommit=True, prepare_threshold=0) as c:
+            for i in range(100):
+                assert c.execute("SELECT %s::int + 1", (i,)).fetchone()[0] == i + 1
+
+
+async def test_prepared_statements_asyncpg():
+    for _ in range(3):
+        c = await asyncpg.connect(URL)
+        try:
+            stmt = await c.prepare("SELECT $1::int + 1")
+            for i in range(100):
+                assert await stmt.fetchval(i) == i + 1
+        finally:
+            await c.close()
+
+
+# concurrency
+
+
