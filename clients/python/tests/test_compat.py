@@ -181,3 +181,36 @@ def test_copy_in_out(conn):
 # large_result
 
 
+def test_large_result(conn):
+    n = 0
+    for _ in conn.cursor().stream("SELECT g FROM generate_series(1, 1000000) g"):
+        n += 1
+    assert n == 1_000_000
+
+
+# listen_notify
+
+
+def test_listen_notify(conn):
+    if MODE == "transaction":
+        with pytest.raises(psycopg.errors.FeatureNotSupported, match="transaction pooling"):
+            conn.execute("LISTEN py_compat")
+        return
+    conn.execute("LISTEN py_compat")
+    with psycopg.connect(DSN, autocommit=True) as other:
+        other.execute("NOTIFY py_compat, 'hi'")
+    for n in conn.notifies(timeout=5):
+        assert n.payload == "hi"
+        break
+    else:
+        pytest.fail("no notification")
+
+
+# tls
+
+
+def test_tls():
+    dsn = f"host={HOST} port={PORT} user=app password=app dbname={DB} sslmode=verify-full sslrootcert={CA}"
+    with psycopg.connect(dsn) as c:
+        assert c.execute("SELECT 1").fetchone()[0] == 1
+        assert c.pgconn.ssl_in_use
