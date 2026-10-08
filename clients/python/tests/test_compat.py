@@ -124,3 +124,29 @@ async def test_prepared_statements_asyncpg():
 # concurrency
 
 
+async def test_concurrency_asyncpg():
+    setup = await asyncpg.connect(URL)
+    t = table("conc")
+    await setup.execute(f"CREATE TABLE {t} (id int PRIMARY KEY, n int)")
+    await setup.execute(f"INSERT INTO {t} VALUES (1, 0)")
+
+    async def worker():
+        c = await asyncpg.connect(URL, timeout=120)
+        try:
+            for _ in range(50):
+                async with c.transaction():
+                    await c.execute(f"UPDATE {t} SET n = n + 1 WHERE id = 1")
+        finally:
+            await c.close()
+
+    try:
+        await asyncio.gather(*(worker() for _ in range(200)))
+        assert await setup.fetchval(f"SELECT n FROM {t}") == 200 * 50
+    finally:
+        await setup.execute(f"DROP TABLE {t}")
+        await setup.close()
+
+
+# cancel_query
+
+
