@@ -150,3 +150,15 @@ async def test_concurrency_asyncpg():
 # cancel_query
 
 
+def test_cancel_query(conn):
+    threading.Timer(0.3, conn.cancel).start()
+    start = time.monotonic()
+    with pytest.raises(psycopg.errors.QueryCanceled):
+        conn.execute("SELECT pg_sleep(30)")
+    assert time.monotonic() - start < 5
+    assert conn.execute("SELECT 1").fetchone()[0] == 1
+
+
+# copy_in_out
+
+
