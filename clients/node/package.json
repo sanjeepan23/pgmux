@@ -1,0 +1,17 @@
+{
+  "name": "pgmux-client-compat",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "pretest": "prisma generate",
+    "test": "node --test --test-concurrency=1 test/compat.test.js"
+  },
+  "dependencies": {
+    "@prisma/client": "6.16.2",
+    "pg": "8.16.3",
+    "pg-copy-streams": "7.0.0",
+    "pg-query-stream": "4.10.3",
+    "postgres": "3.4.7",
+    "prisma": "6.16.2"
+  }
+}
