@@ -46,3 +46,18 @@ test("basic_crud: pg", () =>
     await c.query(`DROP TABLE ${t}`);
   }));
 
+test("basic_crud: postgres.js", async () => {
+  const sql = postgres({ ...pgConfig, username: "app", max: 1 });
+  const t = table("pjs");
+  try {
+    await sql.unsafe(`CREATE TABLE ${t} (id int PRIMARY KEY, name text)`);
+    await sql`INSERT INTO ${sql(t)} ${sql([{ id: 1, name: "a" }, { id: 2, name: "b" }])}`;
+    await sql`UPDATE ${sql(t)} SET name = ${"z"} WHERE id = ${2}`;
+    const [row] = await sql`SELECT name FROM ${sql(t)} WHERE id = ${2}`;
+    assert.equal(row.name, "z");
+    await sql.unsafe(`DROP TABLE ${t}`);
+  } finally {
+    await sql.end();
+  }
+});
+
