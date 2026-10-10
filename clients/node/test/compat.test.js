@@ -34,3 +34,15 @@ async function withClient(fn, config = pgConfig) {
   }
 }
 
+test("basic_crud: pg", () =>
+  withClient(async (c) => {
+    const t = table("crud");
+    await c.query(`CREATE TABLE ${t} (id int PRIMARY KEY, name text)`);
+    await c.query(`INSERT INTO ${t} VALUES ($1, $2), ($3, $4)`, [1, "a", 2, "b"]);
+    await c.query(`UPDATE ${t} SET name = $1 WHERE id = $2`, ["z", 2]);
+    const { rows } = await c.query(`SELECT name FROM ${t} WHERE id = 2`);
+    assert.equal(rows[0].name, "z");
+    await c.query(`DELETE FROM ${t} WHERE id = 1`);
+    await c.query(`DROP TABLE ${t}`);
+  }));
+
