@@ -61,3 +61,23 @@ test("basic_crud: postgres.js", async () => {
   }
 });
 
+test("basic_crud: prisma", async () => {
+  const url = `postgresql://app:app@${host}:${port}/${database}?sslmode=disable`;
+  await withClient((c) => c.query("CREATE TABLE IF NOT EXISTS prisma_items (id serial PRIMARY KEY, name text NOT NULL)"));
+  const prisma = new PrismaClient({ datasources: { db: { url } } });
+  try {
+    const item = await prisma.prismaItem.create({ data: { name: "a" } });
+    await prisma.prismaItem.update({ where: { id: item.id }, data: { name: "z" } });
+    const found = await prisma.prismaItem.findUnique({ where: { id: item.id } });
+    assert.equal(found.name, "z");
+    // An interactive transaction holds one server until it ends.
+    await prisma.$transaction(async (tx) => {
+      await tx.prismaItem.create({ data: { name: "in-tx" } });
+      await tx.prismaItem.deleteMany({ where: { name: "in-tx" } });
+    });
+    await prisma.prismaItem.delete({ where: { id: item.id } });
+  } finally {
+    await prisma.$disconnect();
+  }
+});
+
