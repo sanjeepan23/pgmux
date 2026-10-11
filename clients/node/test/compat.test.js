@@ -99,3 +99,14 @@ test("transaction_commit_rollback: pg", () =>
     await c.query(`DROP TABLE ${t}`);
   }));
 
+test("prepared_statements: pg named queries across reconnects", async () => {
+  for (let round = 0; round < 3; round++) {
+    await withClient(async (c) => {
+      for (let i = 0; i < 100; i++) {
+        const { rows } = await c.query({ name: "add_one", text: "SELECT $1::int + 1 AS v", values: [i] });
+        assert.equal(rows[0].v, i + 1);
+      }
+    });
+  }
+});
+
