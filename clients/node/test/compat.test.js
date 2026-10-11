@@ -81,3 +81,21 @@ test("basic_crud: prisma", async () => {
   }
 });
 
+test("transaction_commit_rollback: pg", () =>
+  withClient(async (c) => {
+    const t = table("tx");
+    await c.query(`CREATE TABLE ${t} (v int)`);
+    await c.query("BEGIN");
+    await c.query(`INSERT INTO ${t} VALUES (1)`);
+    await c.query("COMMIT");
+    await c.query("BEGIN");
+    await c.query(`INSERT INTO ${t} VALUES (2)`);
+    await c.query("ROLLBACK");
+    await c.query("BEGIN");
+    await assert.rejects(c.query("SELECT 1/0"), /division by zero/);
+    await c.query("ROLLBACK");
+    const { rows } = await c.query(`SELECT count(*)::int AS n FROM ${t}`);
+    assert.equal(rows[0].n, 1);
+    await c.query(`DROP TABLE ${t}`);
+  }));
+
