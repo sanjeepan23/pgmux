@@ -110,3 +110,14 @@ test("prepared_statements: pg named queries across reconnects", async () => {
   }
 });
 
+test("prepared_statements: postgres.js pipelined", async () => {
+  const sql = postgres({ ...pgConfig, username: "app", max: 1, prepare: true });
+  try {
+    // postgres.js pipelines these queries on one connection.
+    const results = await Promise.all(Array.from({ length: 100 }, (_, i) => sql`SELECT ${i}::int + 1 AS v`));
+    results.forEach(([row], i) => assert.equal(row.v, i + 1));
+  } finally {
+    await sql.end();
+  }
+});
+
