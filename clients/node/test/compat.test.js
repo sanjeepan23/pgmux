@@ -182,3 +182,23 @@ test("copy_in_out: pg-copy-streams", () =>
     await c.query(`DROP TABLE ${t}`);
   }));
 
+test("large_result: pg-query-stream", () =>
+  withClient(async (c) => {
+    let n = 0;
+    const stream = c.query(new QueryStream("SELECT g FROM generate_series(1, 1000000) g", [], { batchSize: 1000 }));
+    for await (const _ of stream) n++;
+    assert.equal(n, 1_000_000);
+  }));
+
+test("listen_notify: pg", () =>
+  withClient(async (c) => {
+    if (mode === "transaction") {
+      await assert.rejects(c.query("LISTEN node_compat"), /transaction pooling/);
+      return;
+    }
+    await c.query("LISTEN node_compat");
+    const got = new Promise((resolve) => c.on("notification", (n) => resolve(n.payload)));
+    await withClient((o) => o.query("NOTIFY node_compat, 'hi'"));
+    assert.equal(await got, "hi");
+  }));
+
