@@ -121,3 +121,27 @@ test("prepared_statements: postgres.js pipelined", async () => {
   }
 });
 
+test("concurrency: pg 200 workers x 50 transactions", async () => {
+  const t = table("conc");
+  await withClient(async (c) => {
+    await c.query(`CREATE TABLE ${t} (id int PRIMARY KEY, n int)`);
+    await c.query(`INSERT INTO ${t} VALUES (1, 0)`);
+  });
+  await Promise.all(
+    Array.from({ length: 200 }, () =>
+      withClient(async (c) => {
+        for (let i = 0; i < 50; i++) {
+          await c.query("BEGIN");
+          await c.query(`UPDATE ${t} SET n = n + 1 WHERE id = 1`);
+          await c.query("COMMIT");
+        }
+      }),
+    ),
+  );
+  await withClient(async (c) => {
+    const { rows } = await c.query(`SELECT n FROM ${t}`);
+    assert.equal(rows[0].n, 10000);
+    await c.query(`DROP TABLE ${t}`);
+  });
+});
+
