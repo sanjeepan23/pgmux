@@ -160,3 +160,25 @@ test("cancel_query: postgres.js", async () => {
   }
 });
 
+test("copy_in_out: pg-copy-streams", () =>
+  withClient(async (c) => {
+    const t = table("copy");
+    await c.query(`CREATE TABLE ${t} (id int, name text)`);
+    function* rows() {
+      for (let i = 0; i < 100_000; i++) yield `${i}\trow ${i}\n`;
+    }
+    await pipeline(Readable.from(rows()), c.query(copyFrom(`COPY ${t} FROM STDIN`)));
+    let lines = 0;
+    await pipeline(
+      c.query(copyTo(`COPY ${t} TO STDOUT`)),
+      new Writable({
+        write(chunk, _enc, cb) {
+          for (const b of chunk) if (b === 10) lines++;
+          cb();
+        },
+      }),
+    );
+    assert.equal(lines, 100_000);
+    await c.query(`DROP TABLE ${t}`);
+  }));
+
