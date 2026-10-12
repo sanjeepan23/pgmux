@@ -145,3 +145,18 @@ test("concurrency: pg 200 workers x 50 transactions", async () => {
   });
 });
 
+test("cancel_query: postgres.js", async () => {
+  const sql = postgres({ ...pgConfig, username: "app", max: 1 });
+  try {
+    const q = sql`SELECT pg_sleep(30)`;
+    setTimeout(() => q.cancel(), 300);
+    const start = Date.now();
+    await assert.rejects(q, (err) => err.code === "57014");
+    assert.ok(Date.now() - start < 5000);
+    const [row] = await sql`SELECT 1 AS v`;
+    assert.equal(row.v, 1);
+  } finally {
+    await sql.end();
+  }
+});
+
