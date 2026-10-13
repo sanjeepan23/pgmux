@@ -202,3 +202,11 @@ test("listen_notify: pg", () =>
     assert.equal(await got, "hi");
   }));
 
+test("tls: pg verify-full", () =>
+  withClient(
+    async (c) => {
+      const { rows } = await c.query("SELECT 1 AS v");
+      assert.equal(rows[0].v, 1);
+    },
+    { ...pgConfig, ssl: { ca: readFileSync(ca), servername: "localhost", rejectUnauthorized: true } },
+  ));
