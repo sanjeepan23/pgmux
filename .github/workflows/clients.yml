@@ -1,0 +1,88 @@
+name: clients
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  compat:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        language: [go, python, node, java]
+        pool_mode: [transaction, session]
+        postgres: ["14", "17"]
+    name: ${{ matrix.language }} / ${{ matrix.pool_mode }} / pg${{ matrix.postgres }}
+    env:
+      PGMUX_MODE: ${{ matrix.pool_mode }}
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+      - name: Start Postgres and pgmux
+        env:
+          PG_VERSION: ${{ matrix.postgres }}
+        run: |
+          make compose-up build
+          ./bin/pgmux -config clients/pgmux.yaml > pgmux.log 2>&1 &
+          for i in $(seq 1 30); do nc -z localhost 6432 && break; sleep 1; done
+
+      - if: matrix.language == 'go'
+        working-directory: clients/go
+        run: |
+          go install gotest.tools/gotestsum@v1.12.3
+          gotestsum --junitfile ../../junit.xml -- -count=1 ./...
+
+      - if: matrix.language == 'python'
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - if: matrix.language == 'python'
+        working-directory: clients/python
+        run: |
+          pip install -q -e .
+          python -m pytest -q --junitxml=../../junit.xml
+
+      - if: matrix.language == 'node'
+        uses: actions/setup-node@v5
+        with:
+          node-version: "22"
+      - if: matrix.language == 'node'
+        working-directory: clients/node
+        run: |
+          npm install --no-audit --no-fund
+          npm test -- --test-reporter=spec --test-reporter=junit --test-reporter-destination=stdout --test-reporter-destination=../../junit.xml
+
+      - if: matrix.language == 'java'
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: "21"
+      - if: matrix.language == 'java'
+        working-directory: clients/java
+        run: mvn -q -B test && cp target/surefire-reports/TEST-*.xml ../../junit.xml
+
+      - if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: junit-${{ matrix.language }}-${{ matrix.pool_mode }}-pg${{ matrix.postgres }}
+          path: |
+            junit.xml
+            pgmux.log
+
+  badges:
+    needs: compat
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/download-artifact@v5
+        with:
+          path: results
+      - run: python3 clients/badge_table.py results >> "$GITHUB_STEP_SUMMARY"
