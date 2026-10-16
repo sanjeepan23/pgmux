@@ -142,3 +142,21 @@ The scenarios are CRUD, transactions, prepared statements, 200 concurrent worker
 
 Prisma works without the `pgbouncer=true` flag.
 
+## Benchmarks
+
+BENCHMARK_RESULTS
+
+## Design decisions and trade-offs
+
+- **pgproto3 for message types, own framing.** pgmux reads raw messages and forwards most of them
+  unchanged. It decodes only the messages that it must inspect or change.
+- **A persistent reader goroutine per server connection.** The relay never has to interrupt a
+  blocked read, so releasing a connection is a channel operation.
+- **Request queue instead of byte counting.** Matching each server response to a queued request
+  makes pipelining, error skipping and injected messages correct by construction.
+- **Content-addressed statement names.** Clients share server statements, and two clients cannot
+  collide on a name. The cost is a hash per `Parse`.
+- **Writes never happen under the session lock.** A blocked write to a slow peer cannot stall the
+  relay, so a pipeline cannot deadlock inside pgmux.
+- **FIFO wait queue.** A new client cannot take a connection before a client that waits already.
+
