@@ -1,0 +1,15 @@
+# pgmux setup for the benchmark comparison. It matches the PgBouncer settings in pgbouncer.ini.
+listen: 0.0.0.0:6432
+admin_listen: 0.0.0.0:9930
+pool_mode: transaction
+max_client_conn: 10000
+server:
+  host: postgres
+  port: 5432
+  sslmode: disable
+auth:
+  method: scram-sha-256
+  userlist: userlist.txt
+pool:
+  default_size: 25
+  query_wait_timeout: 120s
