@@ -1,0 +1,43 @@
+# Benchmark stack: Postgres, PgBouncer and pgmux on one Docker network. bench/run.sh drives it.
+# run.sh pins each side to its own CPUs when PG_CPUS, POOLER_CPUS and CLIENT_CPUS are set.
+name: pgmux-bench
+
+services:
+  postgres:
+    image: postgres:${PG_VERSION:-16}
+    command: ["postgres", "-c", "max_connections=100", "-c", "shared_buffers=512MB", "-c", "synchronous_commit=off"]
+    environment:
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_HOST_AUTH_METHOD: scram-sha-256
+      POSTGRES_INITDB_ARGS: --auth-host=scram-sha-256
+    volumes:
+      - ../deploy/initdb:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 2s
+      retries: 30
+
+  pgmux:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile
+    command: ["-config", "/etc/pgmux/pgmux.yaml", "-log-level", "warn"]
+    volumes:
+      - ./pgmux.bench.yaml:/etc/pgmux/pgmux.yaml:ro
+      - ../deploy/userlist.txt:/etc/pgmux/userlist.txt:ro
+    ulimits:
+      nofile: 65536
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  pgbouncer:
+    image: edoburu/pgbouncer:v1.24.1-p1
+    volumes:
+      - ./pgbouncer.ini:/etc/pgbouncer/pgbouncer.ini:ro
+      - ../deploy/userlist.txt:/etc/pgbouncer/userlist.txt:ro
+    ulimits:
+      nofile: 65536
+    depends_on:
+      postgres:
+        condition: service_healthy
