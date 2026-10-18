@@ -29,3 +29,18 @@ pin postgres "${PG_CPUS:-}"
 pin pgmux "${POOLER_CPUS:-}"
 pin pgbouncer "${POOLER_CPUS:-}"
 
+pgbench() {
+  docker run --rm --network "$NETWORK" --ulimit nofile=65536:65536 ${CLIENT_CPUS:+--cpuset-cpus "$CLIENT_CPUS"} \
+    -e PGPASSWORD=app -v "$PWD/$OUT/logs:/logs" "$PGBENCH_IMAGE" pgbench "$@"
+}
+
+{
+  echo "date: $(date -u +%Y-%m-%dT%H:%M:%SZ)"
+  echo "host: $(uname -srm)"
+  echo "docker: $(docker info --format 'cpus={{.NCPU}} mem={{.MemTotal}} os={{.OperatingSystem}}')"
+  echo "pgbench image: $PGBENCH_IMAGE"
+  echo "settings: duration=${DURATION}s warmup=${WARMUP}s runs=$RUNS scale=$SCALE jobs=$JOBS"
+  echo "pinning: postgres=${PG_CPUS:-none} pooler=${POOLER_CPUS:-none} client=${CLIENT_CPUS:-none}"
+} > "$OUT/specs.txt"
+cat "$OUT/specs.txt"
+
