@@ -160,3 +160,44 @@ BENCHMARK_RESULTS
   relay, so a pipeline cannot deadlock inside pgmux.
 - **FIFO wait queue.** A new client cannot take a connection before a client that waits already.
 
+## Limitations
+
+- No statement-level pooling, no clustering of pgmux itself, no query routing.
+- `PREPARE` and `EXECUTE` in SQL do not move between servers in transaction mode.
+- Server statements stay until the connection reaches `max_lifetime`. An app that prepares many
+  unique queries uses more server memory.
+- Protocol 3.2 (Postgres 18) clients fall back to 3.0 through `NegotiateProtocolVersion`.
+- No channel binding (`SCRAM-SHA-256-PLUS`).
+
+## Development
+
+```sh
+make test          # unit tests
+make race          # unit tests with the race detector
+make compose-up    # Postgres for the end-to-end tests
+make e2e           # end-to-end tests with real Postgres, pgx and the race detector
+make fuzz          # Go native fuzzing of the parsers
+make lint          # golangci-lint
+make clients       # all client suites (see clients/README.md)
+make bench         # full benchmark (see bench/README.md)
+```
+
+| Path | Contents |
+| --- | --- |
+| `cmd/pgmux` | Flags, logging and signal handling |
+| `internal/app` | Wires the components together |
+| `internal/config` | YAML config and hot reload |
+| `internal/listener` | TCP accept loop and graceful shutdown |
+| `internal/protocol` | Message framing on top of pgproto3 |
+| `internal/auth` | SCRAM-SHA-256, MD5 and the userlist |
+| `internal/pool` | Server connections, the dialer and the pools |
+| `internal/session` | Startup, the client state machine and cancel requests |
+| `internal/prepared` | Statement names for transaction mode |
+| `internal/metrics` | Prometheus collectors |
+| `internal/admin` | Admin HTTP API and event stream |
+| `test/e2e` | End-to-end tests |
+| `dashboard` | React and Vite live dashboard |
+| `clients` | Compatibility suites for Go, Python, TypeScript and Java |
+| `bench` | pgbench runner, connection-churn generator and plots |
+| `deploy` | Docker, Compose, Kubernetes and Grafana files |
+
