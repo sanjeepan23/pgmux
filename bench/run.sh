@@ -44,3 +44,14 @@ pgbench() {
 } > "$OUT/specs.txt"
 cat "$OUT/specs.txt"
 
+echo "initializing pgbench tables (scale $SCALE)"
+pgbench -i -q -s "$SCALE" -h postgres -U app appdb >/dev/null 2>&1
+
+target() {
+  case $1 in
+    direct) echo "postgres 5432 postgres" ;;
+    pgbouncer) echo "pgbouncer 6433 pgbouncer" ;;
+    pgmux) echo "pgmux 6432 pgmux" ;;
+  esac
+}
+
