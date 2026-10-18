@@ -83,3 +83,12 @@ func main() {
 	}
 }
 
+func once(ctx context.Context, cfg *pgx.ConnConfig, query string) error {
+	c, err := pgx.ConnectConfig(ctx, cfg)
+	if err != nil {
+		return err
+	}
+	defer c.Close(context.Background())
+	_, err = c.Exec(ctx, query, pgx.QueryExecModeSimpleProtocol)
+	return err
+}
