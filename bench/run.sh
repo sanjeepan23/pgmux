@@ -55,3 +55,42 @@ target() {
   esac
 }
 
+for setup in $SETUPS; do
+  read -r host port container <<<"$(target "$setup")"
+  for workload in $WORKLOADS; do
+    flag=""
+    [ "$workload" = select ] && flag="-S"
+    for protocol in $PROTOCOLS; do
+      for clients in $CLIENTS; do
+        jobs=$((clients < JOBS ? clients : JOBS))
+        args=(-n $flag -M "$protocol" -c "$clients" -j "$jobs" -h "$host" -p "$port" -U app appdb)
+        echo "== $setup $workload $protocol clients=$clients"
+        pgbench "${args[@]}" -T "$WARMUP" >/dev/null 2>&1 || true
+        for run in $(seq 1 "$RUNS"); do
+          prefix="$setup-$workload-$protocol-$clients-$run"
+          rm -f "$OUT/logs/$prefix".*
+          # Sample the pooler's CPU and memory in the middle of the run.
+          stats_file="$OUT/logs/$prefix.stats"
+          (sleep $((DURATION / 2)); docker stats --no-stream --format '{{.CPUPerc}} {{.MemUsage}}' "pgmux-bench-$container-1" > "$stats_file" 2>/dev/null) &
+          output=$(pgbench "${args[@]}" -T "$DURATION" --log --sampling-rate="$SAMPLING" --log-prefix="/logs/$prefix" 2>&1 || true)
+          wait
+          echo "$output" > "$OUT/logs/$prefix.out"
+          tps=$(echo "$output" | awk '/^tps = /{print $3; exit}')
+          lat=$(echo "$output" | awk '/^latency average = /{print $4; exit}')
+          failed=$(echo "$output" | awk '/number of failed transactions/{print $5; exit}')
+          conn_errors=$(echo "$output" | grep -c -E "connection to server|too many clients|could not connect" || true)
+          read -r p50 p95 p99 <<<"$(python3 percentiles.py "$OUT/logs/$prefix".* 2>/dev/null || echo "  ")"
+          cpu="" rss=""
+          if [ "$setup" != direct ] && [ -s "$stats_file" ]; then
+            read -r cpu rss <<<"$(awk '{gsub("%","",$1); print $1, $2}' "$stats_file")"
+            rss=$(python3 -c "import re,sys; v,u=re.match(r'([\d.]+)(\w+)', sys.argv[1]).groups(); print(round(float(v)*{'B':1/2**20,'KiB':1/1024,'MiB':1,'GiB':1024}[u],1))" "$rss")
+          fi
+          echo "$setup,$workload,$protocol,$clients,$run,${tps:-0},${lat:-},${p50:-},${p95:-},${p99:-},${failed:-},$conn_errors,$cpu,$rss" | tee -a "$CSV"
+        done
+      done
+    done
+  done
+done
+
+echo "results: $CSV"
+echo "plot with: uv run --with matplotlib python3 bench/plot.py $CSV"
