@@ -201,3 +201,6 @@ make bench         # full benchmark (see bench/README.md)
 | `bench` | pgbench runner, connection-churn generator and plots |
 | `deploy` | Docker, Compose, Kubernetes and Grafana files |
 
+## License
+
+Apache License 2.0. See [LICENSE](LICENSE).
