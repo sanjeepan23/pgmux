@@ -1,0 +1,232 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>pgmux, a Postgres connection pooler</title>
+  <meta name="description" content="pgmux is a Postgres connection pooler in Go. Thousands of clients share a small pool of server connections.">
+  <link rel="icon" href="assets/favicon.svg" type="image/svg+xml">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500&family=Schibsted+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header class="nav">
+    <div class="wrap nav-inner">
+      <a class="brand" href="./">
+        <img src="assets/favicon.svg" alt="" width="24" height="24">
+        pgmux
+      </a>
+      <nav aria-label="Main">
+        <a href="#features">Features</a>
+        <a href="#compatibility">Compatibility</a>
+        <a href="#benchmarks">Benchmarks</a>
+        <a href="https://github.com/sanjeepan23/pgmux#readme">Docs</a>
+        <a class="nav-gh" href="https://github.com/sanjeepan23/pgmux">GitHub</a>
+      </nav>
+    </div>
+  </header>
+
+  <main>
+    <section class="hero">
+      <div class="wrap hero-grid">
+        <div class="hero-text">
+          <h1>Thousands of Postgres clients. A few server connections.</h1>
+          <p class="lede">pgmux is a connection pooler for Postgres 14 to 17. It speaks the wire protocol, so your apps and drivers need no changes.</p>
+          <div class="actions">
+            <a class="btn btn-primary" href="#install">Install pgmux</a>
+            <a class="btn btn-secondary" href="https://github.com/sanjeepan23/pgmux">View the source</a>
+          </div>
+
+          <div class="install" id="install">
+            <div class="tabs" role="tablist" aria-label="Install method">
+              <button role="tab" id="tab-docker" aria-controls="panel-docker" aria-selected="true">Docker</button>
+              <button role="tab" id="tab-binary" aria-controls="panel-binary" aria-selected="false" tabindex="-1">Binary</button>
+              <button role="tab" id="tab-source" aria-controls="panel-source" aria-selected="false" tabindex="-1">Source</button>
+            </div>
+            <div class="panel" role="tabpanel" id="panel-docker" aria-labelledby="tab-docker">
+              <pre><code>docker run -p 6432:6432 -p 9930:9930 \
+  -v "$PWD/pgmux.yaml:/etc/pgmux/pgmux.yaml" \
+  ghcr.io/sanjeepan23/pgmux:latest</code></pre>
+              <button class="copy" type="button">Copy</button>
+            </div>
+            <div class="panel" role="tabpanel" id="panel-binary" aria-labelledby="tab-binary" hidden>
+              <pre><code>curl -L https://github.com/sanjeepan23/pgmux/releases/latest/download/pgmux_0.1.0_linux_amd64.tar.gz | tar xz
+./pgmux -config pgmux.example.yaml</code></pre>
+              <button class="copy" type="button">Copy</button>
+            </div>
+            <div class="panel" role="tabpanel" id="panel-source" aria-labelledby="tab-source" hidden>
+              <pre><code>git clone https://github.com/sanjeepan23/pgmux
+cd pgmux && make build
+./bin/pgmux -config pgmux.example.yaml</code></pre>
+              <button class="copy" type="button">Copy</button>
+            </div>
+          </div>
+        </div>
+
+        <figure class="flow" aria-label="Diagram: many client connections enter pgmux, and a few server connections leave it for Postgres.">
+          <svg id="flow" viewBox="0 0 520 380" role="img" aria-hidden="true"></svg>
+          <figcaption>
+            <span>2,000 clients</span>
+            <span>25 server connections</span>
+          </figcaption>
+        </figure>
+      </div>
+    </section>
+
+    <section class="features" id="features">
+      <div class="wrap">
+        <h2>What pgmux does</h2>
+
+        <article class="feature">
+          <div class="feature-text">
+            <h3>Transaction pooling, with prepared statements</h3>
+            <p>A client holds a server connection only while its transaction runs. When the transaction ends, the next client gets that connection.</p>
+            <ul>
+              <li><strong>Prepared statements work.</strong> pgmux prepares each statement again on the server that the client lands on. Clients need no flags.</li>
+              <li><strong>Client settings stay with their client.</strong> A <code>SET TimeZone</code> from one client never reaches a different client.</li>
+              <li><strong>Session mode is there too.</strong> Choose the mode for each database.</li>
+            </ul>
+          </div>
+          <div class="code-card">
+            <div class="code-head">pgmux.yaml</div>
+<pre><code><span class="k">pool_mode</span>: transaction
+
+<span class="k">pool</span>:
+  <span class="k">default_size</span>: 20
+  <span class="k">query_wait_timeout</span>: 30s
+
+<span class="k">databases</span>:
+  <span class="k">appdb</span>:
+    <span class="k">pool_size</span>: 50
+  <span class="k">reports</span>:
+    <span class="k">dbname</span>: appdb
+    <span class="k">pool_mode</span>: session
+    <span class="k">pool_size</span>: 5</code></pre>
+          </div>
+        </article>
+
+        <article class="feature">
+          <div class="feature-text">
+            <h3>Authentication and TLS</h3>
+            <p>pgmux logs clients in itself, and then connects to Postgres for them.</p>
+            <ul>
+              <li><strong>SCRAM-SHA-256 and MD5.</strong> Use a PgBouncer-style userlist file.</li>
+              <li><strong>No passwords on disk.</strong> With <code>auth_query</code>, pgmux gets the password hash from Postgres.</li>
+              <li><strong>TLS on both sides.</strong> Accept TLS from clients, and connect to Postgres with <code>verify-full</code>.</li>
+            </ul>
+          </div>
+          <div class="code-card">
+            <div class="code-head">pgmux.yaml</div>
+<pre><code><span class="k">server</span>:
+  <span class="k">host</span>: db.internal
+  <span class="k">sslmode</span>: verify-full
+
+<span class="k">client_tls</span>:
+  <span class="k">cert_file</span>: server.crt
+  <span class="k">key_file</span>: server.key
+
+<span class="k">auth</span>:
+  <span class="k">method</span>: scram-sha-256
+  <span class="k">auth_user</span>: pgmux
+  <span class="k">auth_query</span>: SELECT usename, passwd
+    FROM pg_shadow WHERE usename = $1</code></pre>
+          </div>
+        </article>
+
+        <article class="feature">
+          <div class="feature-text">
+            <h3>See the pools while they work</h3>
+            <p>Watch clients, server connections and wait times live during a load test.</p>
+            <ul>
+              <li><strong>Prometheus metrics</strong> for clients, servers, wait times and errors. A Grafana dashboard is included.</li>
+              <li><strong>A live dashboard</strong> served by the admin API.</li>
+              <li><strong>An admin API</strong> to pause, resume and reload pools.</li>
+            </ul>
+          </div>
+          <figure class="shot">
+            <img src="assets/dashboard.png" alt="The pgmux dashboard. It shows active, idle and waiting clients, and server connections per pool." width="1280" height="640" loading="lazy">
+          </figure>
+        </article>
+
+        <article class="feature">
+          <div class="feature-text">
+            <h3>Change the config without a restart</h3>
+            <p>pgmux reloads the config file and the userlist when they change. Pool sizes, timeouts, users and certificates update in place.</p>
+            <ul>
+              <li><strong>Pause a pool</strong> for a database restart. New queries wait until you resume, up to <code>query_wait_timeout</code>.</li>
+              <li><strong>Graceful shutdown.</strong> On <code>SIGTERM</code>, open transactions get time to finish.</li>
+            </ul>
+          </div>
+          <div class="code-card">
+            <div class="code-head">shell</div>
+<pre><code><span class="c"># Stop handing out server connections</span>
+curl -X POST "localhost:9930/pause?db=appdb"
+
+<span class="c"># Restart Postgres, then continue</span>
+curl -X POST "localhost:9930/resume?db=appdb"
+
+<span class="c"># Load the config again</span>
+curl -X POST localhost:9930/reload</code></pre>
+          </div>
+        </article>
+      </div>
+    </section>
+
+    <section class="compat" id="compatibility">
+      <div class="wrap">
+        <h2>Tested with real drivers</h2>
+        <p class="section-lede">CI runs the same nine scenarios in four languages, in both pool modes, against Postgres 14 and 17. The scenarios include COPY, cancel, LISTEN and 1M-row results.</p>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr><th scope="col">Language</th><th scope="col">Drivers and ORMs</th><th scope="col">Transaction mode</th><th scope="col">Session mode</th></tr>
+            </thead>
+            <tbody>
+              <tr><th scope="row">Go</th><td>pgx v5, pgx with <code>database/sql</code>, lib/pq</td><td class="ok">Pass</td><td class="ok">Pass</td></tr>
+              <tr><th scope="row">Python</th><td>psycopg 3, asyncpg, SQLAlchemy 2</td><td class="ok">Pass</td><td class="ok">Pass</td></tr>
+              <tr><th scope="row">TypeScript</th><td>node-postgres, postgres.js, Prisma</td><td class="ok">Pass</td><td class="ok">Pass</td></tr>
+              <tr><th scope="row">Java</th><td>pgjdbc, HikariCP</td><td class="ok">Pass</td><td class="ok">Pass</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <section class="bench" id="benchmarks">
+      <div class="wrap">
+        <h2>Benchmarks</h2>
+        <p class="section-lede">BENCHMARK_SUMMARY</p>
+      </div>
+    </section>
+
+    <section class="cta">
+      <div class="wrap">
+        <div class="cta-inner">
+          <h2>Try pgmux in two minutes</h2>
+          <p>Start Postgres and pgmux with Docker Compose, then connect with <code>psql</code> on port 6432.</p>
+          <a class="btn btn-primary" href="https://github.com/sanjeepan23/pgmux#quick-start">Read the quick start</a>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="footer">
+    <div class="wrap footer-inner">
+      <div>
+        <a class="brand" href="./"><img src="assets/favicon.svg" alt="" width="20" height="20"> pgmux</a>
+        <p>A Postgres connection pooler in Go. Apache License 2.0.</p>
+      </div>
+      <nav aria-label="Footer">
+        <a href="https://github.com/sanjeepan23/pgmux">GitHub</a>
+        <a href="https://github.com/sanjeepan23/pgmux/releases">Releases</a>
+        <a href="https://github.com/sanjeepan23/pgmux/blob/main/pgmux.example.yaml">Config reference</a>
+        <a href="https://github.com/sanjeepan23/pgmux/issues">Issues</a>
+      </nav>
+    </div>
+  </footer>
+
+  <script src="main.js"></script>
+</body>
+</html>
