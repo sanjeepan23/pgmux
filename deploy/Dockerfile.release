@@ -1,0 +1,7 @@
+# GoReleaser builds the binary and the dashboard first and copies them in.
+FROM gcr.io/distroless/static-debian12:nonroot
+COPY pgmux /pgmux
+COPY dashboard/dist /usr/share/pgmux/dashboard
+EXPOSE 6432 9930
+ENTRYPOINT ["/pgmux"]
+CMD ["-config", "/etc/pgmux/pgmux.yaml"]

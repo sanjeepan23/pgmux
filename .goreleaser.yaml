@@ -1,0 +1,43 @@
+version: 2
+
+before:
+  hooks:
+    - sh -c "cd dashboard && npm ci && npm run build"
+
+builds:
+  - main: ./cmd/pgmux
+    binary: pgmux
+    env: [CGO_ENABLED=0]
+    goos: [linux, darwin]
+    goarch: [amd64, arm64]
+    flags: [-trimpath]
+    ldflags: ["-s -w -X main.version={{ .Version }}"]
+
+archives:
+  - formats: [tar.gz]
+    files: [LICENSE, README.md, pgmux.example.yaml, dashboard/dist]
+
+checksum:
+  name_template: checksums.txt
+
+dockers:
+  - image_templates: ["ghcr.io/sanjeepan23/pgmux:{{ .Version }}-amd64"]
+    dockerfile: deploy/Dockerfile.release
+    extra_files: [dashboard/dist]
+    use: buildx
+    build_flag_templates: [--platform=linux/amd64]
+  - image_templates: ["ghcr.io/sanjeepan23/pgmux:{{ .Version }}-arm64"]
+    dockerfile: deploy/Dockerfile.release
+    extra_files: [dashboard/dist]
+    use: buildx
+    goarch: arm64
+    build_flag_templates: [--platform=linux/arm64]
+
+docker_manifests:
+  - name_template: ghcr.io/sanjeepan23/pgmux:{{ .Version }}
+    image_templates: ["ghcr.io/sanjeepan23/pgmux:{{ .Version }}-amd64", "ghcr.io/sanjeepan23/pgmux:{{ .Version }}-arm64"]
+  - name_template: ghcr.io/sanjeepan23/pgmux:latest
+    image_templates: ["ghcr.io/sanjeepan23/pgmux:{{ .Version }}-amd64", "ghcr.io/sanjeepan23/pgmux:{{ .Version }}-arm64"]
+
+changelog:
+  sort: asc
