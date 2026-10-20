@@ -6,6 +6,7 @@
   <title>pgmux, a Postgres connection pooler</title>
   <meta name="description" content="pgmux is a Postgres connection pooler in Go. Thousands of clients share a small pool of server connections.">
   <link rel="icon" href="assets/favicon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="assets/apple-touch-icon.png">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500&family=Schibsted+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -197,7 +198,11 @@ curl -X POST localhost:9930/reload</code></pre>
     <section class="bench" id="benchmarks">
       <div class="wrap">
         <h2>Benchmarks</h2>
-        <p class="section-lede">BENCHMARK_SUMMARY</p>
+        <p class="section-lede">pgbench against PgBouncer 1.24, both in transaction mode with 25 server connections. With prepared statements and 100 or more clients, pgmux is 20% to 45% faster. With the simple protocol, PgBouncer is faster.</p>
+        <figure class="chart">
+          <img src="assets/tps_vs_clients.png" alt="Four charts of transactions per second against client count, for direct Postgres, PgBouncer and pgmux." width="2400" height="480" loading="lazy">
+          <figcaption>Transactions per second, median of 3 runs of 60 s. Direct Postgres fails from 100 clients on. <a href="https://github.com/sanjeepan23/pgmux#benchmarks">Full results and method</a></figcaption>
+        </figure>
       </div>
     </section>
 

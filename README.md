@@ -1,3 +1,5 @@
+<img src="site/assets/favicon.svg" alt="pgmux logo" width="72" height="72">
+
 # pgmux
 
 pgmux is a Postgres connection pooler in Go. It speaks the Postgres wire protocol, so thousands of
@@ -144,7 +146,34 @@ Prisma works without the `pgbouncer=true` flag.
 
 ## Benchmarks
 
-BENCHMARK_RESULTS
+One machine (Apple M3 Pro, Docker with 10 CPUs) runs Postgres 16 on 4 CPUs, the pooler on 2 CPUs
+and pgbench on 4 CPUs. Each point is the median of 3 runs of 60 s after a 15 s warm-up. Both poolers
+use transaction mode with 25 server connections. Direct Postgres has `max_connections = 100`, so it
+fails from 100 clients on.
+
+![Transactions per second against client count](bench/results/v0.1.0/tps_vs_clients.png)
+![p99 latency against client count](bench/results/v0.1.0/p99_vs_clients.png)
+
+| Workload | Clients | PgBouncer 1.24 | pgmux | pgmux p99 |
+| --- | --- | --- | --- | --- |
+| `select -M prepared` | 10 | 59,040 TPS | 48,478 TPS | 0.6 ms |
+| `select -M prepared` | 1,000 | 45,609 TPS | 66,177 TPS | 23 ms |
+| `select -M simple` | 10 | 69,431 TPS | 40,132 TPS | 0.7 ms |
+| `select -M simple` | 1,000 | 69,755 TPS | 52,767 TPS | 37 ms |
+| `tpcb -M simple` | 1,000 | 12,130 TPS | 8,722 TPS | 156 ms |
+| `tpcb -M prepared` | 1,000 | stalls | 9,587 TPS | 144 ms |
+
+What the numbers show:
+
+- With prepared statements and 100 or more clients, pgmux is 20% to 45% faster than PgBouncer.
+- With the simple protocol, pgmux is slower than PgBouncer: by 24% at 1,000 clients and by 42% at 10 clients.
+- PgBouncer 1.24.1 stalls on `tpcb -M prepared` from 50 clients on. All its server connections wait
+  in a transaction after `BEGIN`, and clients time out. pgmux has no errors and drops no clients at any point.
+- pgmux uses two CPU cores where PgBouncer uses one. pgmux uses about 80 KB of memory per client
+  (430 MB at 5,000 clients). PgBouncer uses 42 MB.
+
+The scripts, machine specs and raw results are in [bench/](bench/). Direct and PgBouncer come from the
+first run, and pgmux from a second run after a fix. Both runs used the same settings.
 
 ## Design decisions and trade-offs
 
@@ -168,6 +197,8 @@ BENCHMARK_RESULTS
   unique queries uses more server memory.
 - Protocol 3.2 (Postgres 18) clients fall back to 3.0 through `NegotiateProtocolVersion`.
 - No channel binding (`SCRAM-SHA-256-PLUS`).
+- Each client uses about 80 KB of memory, which is more than PgBouncer.
+- With the simple protocol, pgmux has lower throughput than PgBouncer.
 
 ## Development
 
