@@ -1,20 +1,40 @@
-<img src="site/assets/favicon.svg" alt="pgmux logo" width="72" height="72">
+<p align="center">
+  <img src="site/assets/favicon.svg" alt="pgmux logo" width="96" height="96">
+</p>
 
-# pgmux
+<h1 align="center">pgmux</h1>
 
-pgmux is a Postgres connection pooler in Go. It speaks the Postgres wire protocol, so thousands of
-client connections can share a small pool of real server connections.
+<p align="center">
+  <b>A Postgres connection pooler in Go.</b><br>
+  Thousands of clients share a few server connections, and your apps need no changes.
+</p>
 
-- Session and transaction pooling, for Postgres 14 to 17.
-- SCRAM-SHA-256 and MD5 authentication, with a userlist file or an `auth_query`.
-- TLS from clients and to Postgres, including `verify-full`.
-- Prepared statements in transaction mode, with no client changes.
-- Prometheus metrics, an admin HTTP API, a live dashboard, and a Grafana dashboard.
-- Config hot reload, graceful shutdown, and cancel request support.
+<p align="center">
+  <a href="https://github.com/sanjeepan23/pgmux/actions/workflows/ci.yml"><img src="https://github.com/sanjeepan23/pgmux/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
+  <a href="https://github.com/sanjeepan23/pgmux/releases"><img src="https://img.shields.io/github/v/release/sanjeepan23/pgmux?color=0b6e69" alt="Release"></a>
+  <img src="https://img.shields.io/github/go-mod/go-version/sanjeepan23/pgmux?color=2e5e88" alt="Go version">
+  <img src="https://img.shields.io/badge/Postgres-14%20to%2017-2e5e88" alt="Postgres 14 to 17">
+  <a href="LICENSE"><img src="https://img.shields.io/github/license/sanjeepan23/pgmux?color=4e6068" alt="License"></a>
+</p>
 
-![pgmux dashboard during a load test](docs/dashboard.png)
+<p align="center">
+  <a href="https://sanjeepan23.github.io/pgmux/">Website</a> ·
+  <a href="#-quick-start">Quick start</a> ·
+  <a href="#-benchmarks">Benchmarks</a> ·
+  <a href="https://github.com/sanjeepan23/pgmux/releases">Releases</a>
+</p>
 
-## Quick start
+## ✨ Features
+
+- 🔀 **Session and transaction pooling** for Postgres 14 to 17.
+- 📝 **Prepared statements in transaction mode**, with no client changes.
+- 🔐 **SCRAM-SHA-256 and MD5 authentication**, with a userlist file or an `auth_query`.
+- 🔒 **TLS on both sides**, including `verify-full` to Postgres.
+- 📈 **Prometheus metrics**, an admin HTTP API, a live dashboard and a Grafana dashboard.
+- ♻️ **Config hot reload**, graceful shutdown and cancel requests.
+- 🧪 **Tested with real drivers** in Go, Python, TypeScript and Java.
+
+## 🚀 Quick start
 
 You need Go 1.26, Docker and `psql`.
 
@@ -32,7 +52,7 @@ To run pgmux in Docker as well:
 docker compose -f deploy/docker-compose.yml --profile pgmux up -d --build
 ```
 
-## Install
+## 📦 Install
 
 Download a binary for Linux or macOS from the
 [releases page](https://github.com/sanjeepan23/pgmux/releases). Each archive also has the
@@ -46,17 +66,11 @@ docker run -p 6432:6432 -p 9930:9930 -v "$PWD/pgmux.yaml:/etc/pgmux/pgmux.yaml" 
 
 The image has the dashboard in `/usr/share/pgmux/dashboard`.
 
-## Architecture
+## 🏗️ Architecture
 
-```mermaid
-flowchart LR
-    C1[client] & C2[client] & C3[client] --> L[listener<br/>TCP and TLS accept]
-    L --> A[startup and auth<br/>SCRAM, MD5, auth_query]
-    A --> S[session state machine<br/>one per client]
-    S <-->|acquire and release| P[pool per user and database]
-    P <--> PG[(Postgres)]
-    S --> M[metrics and admin API]
-```
+<p align="center">
+  <img src="docs/architecture.svg" alt="pgmux architecture: clients connect to the listener, then auth, then sessions, which take server connections from per-database pools that connect to Postgres. An admin API and observability sit below." width="900">
+</p>
 
 Each client connection has one goroutine. It reads client messages and forwards them to a server
 connection. While a server connection is attached, a relay goroutine forwards the server messages to
@@ -100,7 +114,7 @@ pgmux logs a warning and counts `pgmux_session_feature_warnings_total` for a non
 other parameters, `PREPARE`, temporary tables, session advisory locks and `WITH HOLD` cursors.
 pgmux rejects `LISTEN` in transaction mode with a clear error. `LISTEN` works in session mode.
 
-## Configuration
+## ⚙️ Configuration
 
 See [pgmux.example.yaml](pgmux.example.yaml) for every setting and its default. pgmux reloads the
 config file and the userlist when they change, on `SIGHUP`, and on `POST /reload`. Pool sizes,
@@ -113,7 +127,7 @@ an MD5 hash, or a SCRAM secret. pgmux needs one of these to log in to Postgres:
 - a SCRAM secret. Then pgmux reuses the SCRAM proof of the first client that logs in, so no
   plaintext password is on disk. `auth_query` uses this method too.
 
-## Admin API
+## 🛠️ Admin API
 
 | Endpoint | Description |
 | --- | --- |
@@ -129,7 +143,7 @@ an MD5 hash, or a SCRAM secret. pgmux needs one of these to log in to Postgres:
 
 The Grafana dashboard is in [deploy/grafana](deploy/grafana).
 
-## Compatibility
+## 🧩 Compatibility
 
 The [client suites](clients/) run the same nine scenarios in four languages, in both pool modes.
 The scenarios are CRUD, transactions, prepared statements, 200 concurrent workers, cancel, COPY,
@@ -144,7 +158,7 @@ The scenarios are CRUD, transactions, prepared statements, 200 concurrent worker
 
 Prisma works without the `pgbouncer=true` flag.
 
-## Benchmarks
+## 📊 Benchmarks
 
 One machine (Apple M3 Pro, Docker with 10 CPUs) runs Postgres 16 on 4 CPUs, the pooler on 2 CPUs
 and pgbench on 4 CPUs. Each point is the median of 3 runs of 60 s after a 15 s warm-up. Both poolers
@@ -175,7 +189,7 @@ What the numbers show:
 The scripts, machine specs and raw results are in [bench/](bench/). Direct and PgBouncer come from the
 first run, and pgmux from a second run after a fix. Both runs used the same settings.
 
-## Design decisions and trade-offs
+## 🧭 Design decisions and trade-offs
 
 - **pgproto3 for message types, own framing.** pgmux reads raw messages and forwards most of them
   unchanged. It decodes only the messages that it must inspect or change.
@@ -189,7 +203,7 @@ first run, and pgmux from a second run after a fix. Both runs used the same sett
   relay, so a pipeline cannot deadlock inside pgmux.
 - **FIFO wait queue.** A new client cannot take a connection before a client that waits already.
 
-## Limitations
+## ⚠️ Limitations
 
 - No statement-level pooling, no clustering of pgmux itself, no query routing.
 - `PREPARE` and `EXECUTE` in SQL do not move between servers in transaction mode.
@@ -200,7 +214,7 @@ first run, and pgmux from a second run after a fix. Both runs used the same sett
 - Each client uses about 80 KB of memory, which is more than PgBouncer.
 - With the simple protocol, pgmux has lower throughput than PgBouncer.
 
-## Development
+## 🧑‍💻 Development
 
 ```sh
 make test          # unit tests
@@ -232,6 +246,13 @@ make bench         # full benchmark (see bench/README.md)
 | `bench` | pgbench runner, connection-churn generator and plots |
 | `deploy` | Docker, Compose, Kubernetes and Grafana files |
 
-## License
+## 🖥️ Dashboard
+
+The admin API serves a live dashboard. It shows clients, server connections, throughput and pool
+saturation, and it updates once a second.
+
+![pgmux dashboard during a load test](docs/dashboard.png)
+
+## 📄 License
 
 Apache License 2.0. See [LICENSE](LICENSE).
