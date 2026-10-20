@@ -28,9 +28,12 @@ def main(csv_path):
         for row in csv.DictReader(f):
             groups[(row["setup"], row["workload"], row["protocol"], int(row["clients"]))].append(row)
 
-    fields = ["tps", "latency_avg_ms", "p50_ms", "p95_ms", "p99_ms", "failed", "conn_errors", "pooler_cpu_pct", "pooler_rss_mb"]
+    fields = ["tps", "latency_avg_ms", "p50_ms", "p95_ms", "p99_ms", "failed", "conn_errors", "aborted", "pooler_cpu_pct", "pooler_rss_mb"]
     summary = []
     for key, rows in sorted(groups.items()):
+        # A run where clients could not connect or were dropped did not measure the requested client count.
+        valid = [r for r in rows if not num(r["conn_errors"]) and not num(r.get("aborted"))]
+        rows = valid or rows
         med = {}
         for fld in fields:
             vals = [v for v in (num(r[fld]) for r in rows) if v is not None]
@@ -49,7 +52,11 @@ def main(csv_path):
         fig, axes = plt.subplots(1, len(panels), figsize=(5 * len(panels), 4), squeeze=False)
         for ax, (workload, protocol) in zip(axes[0], panels):
             for setup in COLORS:
-                pts = [(k[3], m[metric]) for k, m in summary if k[:3] == (setup, workload, protocol) and m[metric]]
+                pts = [
+                    (k[3], m[metric])
+                    for k, m in summary
+                    if k[:3] == (setup, workload, protocol) and m[metric] and not m["conn_errors"] and not m["aborted"]
+                ]
                 if pts:
                     xs, ys = zip(*pts)
                     ax.plot(xs, ys, marker="o", label=setup, color=COLORS[setup])

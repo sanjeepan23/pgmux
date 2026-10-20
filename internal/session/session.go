@@ -490,23 +490,32 @@ func (s *Session) relay(c *pool.Conn, stop <-chan struct{}, done chan<- struct{}
 		}
 		s.mu.Unlock()
 
-		for _, m := range out {
-			if err := s.wr.WriteRaw(m); err != nil {
-				s.clientLost()
-				return
-			}
+		err := s.writeOut(out, detach || len(msgs) == 0)
+		if detach {
+			// The server is idle and detached, so it goes back to the pool even if the client is gone.
+			s.pool.Release(c)
 		}
-		if detach || len(msgs) == 0 {
-			if err := s.wr.Flush(); err != nil {
-				s.clientLost()
-				return
-			}
+		if err != nil {
+			s.clientLost()
+			return
 		}
 		if detach {
-			s.pool.Release(c)
 			return
 		}
 	}
+}
+
+// writeOut writes server messages to the client from the relay.
+func (s *Session) writeOut(out []protocol.Message, flush bool) error {
+	for _, m := range out {
+		if err := s.wr.WriteRaw(m); err != nil {
+			return err
+		}
+	}
+	if flush {
+		return s.wr.Flush()
+	}
+	return nil
 }
 
 func (s *Session) canDetachLocked() bool {

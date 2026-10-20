@@ -28,6 +28,9 @@ type Conn struct {
 	Secret []byte
 
 	netConn net.Conn
+	// wmu guards w. A new owner can write while the previous owner is still inside Flush,
+	// because the server can answer before Flush returns.
+	wmu     sync.Mutex
 	w       *protocol.Writer
 	msgs    chan protocol.Message
 	closed  chan struct{}
@@ -109,6 +112,8 @@ func (c *Conn) ReadErr() error {
 
 // WriteRaw buffers a raw message. Call Flush to send it.
 func (c *Conn) WriteRaw(m protocol.Message) error {
+	c.wmu.Lock()
+	defer c.wmu.Unlock()
 	if err := c.w.WriteRaw(m); err != nil {
 		c.broken.Store(true)
 		return err
@@ -118,6 +123,8 @@ func (c *Conn) WriteRaw(m protocol.Message) error {
 
 // Flush sends all buffered messages.
 func (c *Conn) Flush() error {
+	c.wmu.Lock()
+	defer c.wmu.Unlock()
 	if err := c.w.Flush(); err != nil {
 		c.broken.Store(true)
 		return err
@@ -141,8 +148,10 @@ func (c *Conn) Close() {
 		close(c.closed)
 		// Send Terminate so that the server does not log an unexpected EOF.
 		_ = c.netConn.SetWriteDeadline(time.Now().Add(100 * time.Millisecond))
+		c.wmu.Lock()
 		_ = c.w.WriteRaw(protocol.Message{Type: 'X'})
 		_ = c.w.Flush()
+		c.wmu.Unlock()
 		_ = c.netConn.Close()
 	})
 }
@@ -206,8 +215,7 @@ func (c *Conn) Exec(ctx context.Context, sql string) error {
 		_ = c.netConn.SetWriteDeadline(dl)
 		defer func() { _ = c.netConn.SetWriteDeadline(time.Time{}) }()
 	}
-	if err := c.w.Write(&pgproto3.Query{String: sql}); err != nil {
-		c.broken.Store(true)
+	if err := c.WriteRaw(protocol.MustEncode(&pgproto3.Query{String: sql})); err != nil {
 		return err
 	}
 	if err := c.Flush(); err != nil {

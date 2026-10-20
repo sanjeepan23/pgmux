@@ -10,6 +10,7 @@ import (
 	"os"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -173,6 +174,45 @@ func TestConcurrency(t *testing.T) {
 			t.Fatalf("pool opened %d servers, max is 10", s.ServersTotal)
 		}
 	}
+}
+
+// TestFastReuse runs short queries with more servers than clients, so a server goes to a new client while
+// the previous client can still be inside its write. pgbench -S found this race.
+func TestFastReuse(t *testing.T) {
+	a, _ := startPgmux(t, options{poolSize: 25})
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+
+	const clients = 10
+	var wg sync.WaitGroup
+	var total atomic.Int64
+	errs := make(chan error, clients)
+	for w := 0; w < clients; w++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			c, err := pgx.Connect(context.Background(), appDSN(a, "default_query_exec_mode", "simple_protocol"))
+			if err != nil {
+				errs <- err
+				return
+			}
+			defer c.Close(context.Background())
+			for ctx.Err() == nil {
+				var n int
+				if err := c.QueryRow(context.Background(), "SELECT 1").Scan(&n); err != nil {
+					errs <- err
+					return
+				}
+				total.Add(1)
+			}
+		}()
+	}
+	wg.Wait()
+	close(errs)
+	for err := range errs {
+		t.Fatal(err)
+	}
+	t.Logf("%d queries", total.Load())
 }
 
 func TestCancelQuery(t *testing.T) {

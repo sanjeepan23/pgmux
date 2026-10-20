@@ -215,6 +215,11 @@ thead th { font-weight: 600; color: var(--muted); font-size: 0.85rem; background
 tbody th { font-weight: 600; }
 td.ok { color: var(--teal); font-weight: 600; white-space: nowrap; }
 
+/* Benchmarks */
+.chart { margin: 0; display: grid; gap: 12px; }
+.chart img { background: #fff; border: 1px solid var(--line); border-radius: 12px; }
+.chart figcaption { color: var(--muted); font-size: 0.9rem; }
+
 /* CTA */
 .cta { padding: 88px 0; }
 .cta-inner {

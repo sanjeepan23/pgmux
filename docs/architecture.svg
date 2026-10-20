@@ -1,0 +1,113 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 470" width="1000" height="470" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif">
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0 0 L10 5 L0 10 Z" fill="#4e6068"/>
+    </marker>
+    <style>
+      .title { font-size: 15px; font-weight: 700; fill: #142027; }
+      .sub { font-size: 12.5px; fill: #4e6068; }
+      .label { font-size: 13px; fill: #4e6068; }
+      .box { fill: #ffffff; stroke: #b9d3cf; stroke-width: 1.5; }
+      .flow { stroke: #4e6068; stroke-width: 1.6; fill: none; }
+    </style>
+  </defs>
+
+  <rect width="1000" height="470" rx="18" fill="#eef5f4"/>
+
+  <!-- Clients -->
+  <text x="90" y="52" text-anchor="middle" class="title">Clients</text>
+  <text x="90" y="70" text-anchor="middle" class="sub">thousands of connections</text>
+  <g>
+    <rect x="35" y="110" width="110" height="34" rx="8" class="box"/>
+    <rect x="35" y="160" width="110" height="34" rx="8" class="box"/>
+    <rect x="35" y="210" width="110" height="34" rx="8" class="box"/>
+    <rect x="35" y="260" width="110" height="34" rx="8" class="box"/>
+    <rect x="35" y="310" width="110" height="34" rx="8" class="box"/>
+    <text x="90" y="132" text-anchor="middle" class="sub">web app</text>
+    <text x="90" y="182" text-anchor="middle" class="sub">worker</text>
+    <text x="90" y="232" text-anchor="middle" class="sub">serverless fn</text>
+    <text x="90" y="282" text-anchor="middle" class="sub">psql</text>
+    <text x="90" y="332" text-anchor="middle" class="sub">ORM</text>
+  </g>
+  <g stroke="#0b6e69" stroke-opacity="0.55" stroke-width="1.6" fill="none">
+    <path d="M145 127 C185 127, 190 175, 228 175"/>
+    <path d="M145 177 C185 177, 190 180, 228 180"/>
+    <path d="M145 227 C185 227, 190 185, 228 185"/>
+    <path d="M145 277 C185 277, 190 190, 228 190"/>
+    <path d="M145 327 C185 327, 190 195, 228 195"/>
+  </g>
+
+  <!-- pgmux -->
+  <rect x="200" y="36" width="580" height="400" rx="16" fill="#ffffff" stroke="#0b6e69" stroke-width="2"/>
+  <g transform="translate(224 54) scale(0.3)">
+    <rect width="100" height="100" rx="22" fill="#0b6e69"/>
+    <g fill="none" stroke="#fff" stroke-width="10" stroke-linecap="round">
+      <path d="M26 30 V72"/>
+      <circle cx="37" cy="41" r="11"/>
+      <circle cx="63" cy="41" r="11"/>
+      <path d="M74 30 V60 C74 68 68 72 62 72 C58 72 55 71 53 69"/>
+    </g>
+  </g>
+  <text x="264" y="76" class="title" font-size="18">pgmux</text>
+
+  <g>
+    <rect x="228" y="130" width="116" height="110" rx="10" fill="#f6faf9" stroke="#d3e3e1" stroke-width="1.5"/>
+    <text x="286" y="166" text-anchor="middle" class="title">Listener</text>
+    <text x="286" y="188" text-anchor="middle" class="sub">TCP accept</text>
+    <text x="286" y="206" text-anchor="middle" class="sub">TLS from clients</text>
+
+    <rect x="364" y="130" width="116" height="110" rx="10" fill="#f6faf9" stroke="#d3e3e1" stroke-width="1.5"/>
+    <text x="422" y="166" text-anchor="middle" class="title">Auth</text>
+    <text x="422" y="188" text-anchor="middle" class="sub">SCRAM, MD5</text>
+    <text x="422" y="206" text-anchor="middle" class="sub">auth_query</text>
+
+    <rect x="500" y="130" width="116" height="110" rx="10" fill="#f6faf9" stroke="#d3e3e1" stroke-width="1.5"/>
+    <text x="558" y="166" text-anchor="middle" class="title">Sessions</text>
+    <text x="558" y="188" text-anchor="middle" class="sub">state machine</text>
+    <text x="558" y="206" text-anchor="middle" class="sub">and relay</text>
+
+    <rect x="636" y="130" width="120" height="110" rx="10" fill="#e3f1ef" stroke="#0b6e69" stroke-width="1.5"/>
+    <text x="696" y="166" text-anchor="middle" class="title">Pools</text>
+    <text x="696" y="188" text-anchor="middle" class="sub">per user and db</text>
+    <text x="696" y="206" text-anchor="middle" class="sub">FIFO wait queue</text>
+  </g>
+  <g class="flow" marker-end="url(#arrow)">
+    <path d="M344 185 H362"/>
+    <path d="M480 185 H498"/>
+    <path d="M616 185 H634"/>
+  </g>
+  <text x="558" y="118" text-anchor="middle" class="label">acquire at query, release at ReadyForQuery</text>
+
+  <!-- Admin row -->
+  <g>
+    <rect x="228" y="318" width="252" height="90" rx="10" fill="#f6faf9" stroke="#d3e3e1" stroke-width="1.5"/>
+    <text x="354" y="352" text-anchor="middle" class="title">Admin API  :9930</text>
+    <text x="354" y="374" text-anchor="middle" class="sub">stats, pools, pause, resume, reload</text>
+    <rect x="500" y="318" width="256" height="90" rx="10" fill="#f6faf9" stroke="#d3e3e1" stroke-width="1.5"/>
+    <text x="628" y="352" text-anchor="middle" class="title">Observability</text>
+    <text x="628" y="374" text-anchor="middle" class="sub">Prometheus, live dashboard (SSE)</text>
+  </g>
+  <g stroke="#4e6068" stroke-width="1.4" stroke-dasharray="4 4" fill="none">
+    <path d="M558 240 V316"/>
+    <path d="M696 240 V316"/>
+    <path d="M422 240 V316"/>
+  </g>
+  <text x="490" y="282" text-anchor="middle" class="label">config hot reload</text>
+
+  <!-- Server connections -->
+  <g stroke="#2e5e88" stroke-width="3.2" fill="none" stroke-linecap="round">
+    <path d="M756 165 H842"/>
+    <path d="M756 185 H842"/>
+    <path d="M756 205 H842"/>
+  </g>
+
+  <!-- Postgres -->
+  <g>
+    <path d="M845 140 V230 A55 13 0 0 0 955 230 V140" fill="#e3ecf4" stroke="#2e5e88" stroke-width="2"/>
+    <ellipse cx="900" cy="140" rx="55" ry="13" fill="#eef3f9" stroke="#2e5e88" stroke-width="2"/>
+    <text x="900" y="193" text-anchor="middle" class="title" fill="#2e5e88" style="fill:#2e5e88">Postgres</text>
+  </g>
+  <text x="900" y="276" text-anchor="middle" class="title">25 server</text>
+  <text x="900" y="294" text-anchor="middle" class="title">connections</text>
+  <text x="900" y="314" text-anchor="middle" class="sub">TLS verify-full</text>
+</svg>
