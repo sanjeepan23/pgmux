@@ -1,0 +1,6 @@
+date: 2026-10-20T00:26:13Z
+host: Darwin 27.0.0 arm64
+docker: cpus=10 mem=12514885632 os=Ubuntu 24.04.1 LTS
+pgbench image: postgres:17
+settings: duration=60s warmup=15s runs=3 scale=50 jobs=8
+pinning: postgres=0-3 pooler=4-5 client=6-9

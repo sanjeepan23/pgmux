@@ -21,7 +21,7 @@ NETWORK=pgmux-bench_default
 OUT="results/raw/$(date +%Y%m%d-%H%M%S)"
 mkdir -p "$OUT/logs"
 CSV="$OUT/results.csv"
-echo "setup,workload,protocol,clients,run,tps,latency_avg_ms,p50_ms,p95_ms,p99_ms,failed,conn_errors,pooler_cpu_pct,pooler_rss_mb" > "$CSV"
+echo "setup,workload,protocol,clients,run,tps,latency_avg_ms,p50_ms,p95_ms,p99_ms,failed,conn_errors,aborted,pooler_cpu_pct,pooler_rss_mb" > "$CSV"
 
 $COMPOSE up -d --build --wait
 pin() { [ -n "${2:-}" ] && docker update --cpuset-cpus "$2" "pgmux-bench-$1-1" >/dev/null || true; }
@@ -79,13 +79,15 @@ for setup in $SETUPS; do
           lat=$(echo "$output" | awk '/^latency average = /{print $4; exit}')
           failed=$(echo "$output" | awk '/number of failed transactions/{print $5; exit}')
           conn_errors=$(echo "$output" | grep -c -E "connection to server|too many clients|could not connect" || true)
+          # Clients that lost their connection during the run. pgbench keeps going with the rest.
+          aborted=$(echo "$output" | grep -c -E "client [0-9]+ aborted" || true)
           read -r p50 p95 p99 <<<"$(python3 percentiles.py "$OUT/logs/$prefix".* 2>/dev/null || echo "  ")"
           cpu="" rss=""
           if [ "$setup" != direct ] && [ -s "$stats_file" ]; then
             read -r cpu rss <<<"$(awk '{gsub("%","",$1); print $1, $2}' "$stats_file")"
             rss=$(python3 -c "import re,sys; v,u=re.match(r'([\d.]+)(\w+)', sys.argv[1]).groups(); print(round(float(v)*{'B':1/2**20,'KiB':1/1024,'MiB':1,'GiB':1024}[u],1))" "$rss")
           fi
-          echo "$setup,$workload,$protocol,$clients,$run,${tps:-0},${lat:-},${p50:-},${p95:-},${p99:-},${failed:-},$conn_errors,$cpu,$rss" | tee -a "$CSV"
+          echo "$setup,$workload,$protocol,$clients,$run,${tps:-0},${lat:-},${p50:-},${p95:-},${p99:-},${failed:-},$conn_errors,$aborted,$cpu,$rss" | tee -a "$CSV"
         done
       done
     done
